@@ -20,6 +20,7 @@ class FrenetFramePlanner:
         
         if not os.path.exists(path): os.mkdir(path)
         if not os.path.exists(path + "Scans/"): os.mkdir(path+ "Scans/")
+        if not os.path.exists(path + "ScanData/"): os.mkdir(path+ "ScanData/")
         # self.vehicle_state_history = VehicleStateHistory(name, "ff")
         
         fov2 = 4.7 / 2
@@ -32,11 +33,15 @@ class FrenetFramePlanner:
     def plan(self, obs):
         speed = obs['linear_vels_x'][0]
         
+        np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
+        
+        self.counter += 1
+        return np.array([0, 5])
+        
         center_line = self.run_centerline_extraction(obs['scans'][0])
         
         action = self.plan_frenet_action(center_line, speed)
         
-        self.counter += 1
         
         return action
         

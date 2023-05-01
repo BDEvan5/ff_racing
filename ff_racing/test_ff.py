@@ -29,7 +29,7 @@ def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
 def test_frenet_planner():
     map_name = "aut" # "aut", "esp", "gbr", "mco"
     agent_name = "devel_ff"
-    n_test_laps = 5
+    n_test_laps = 1
     
     env = F110Env(map=map_name, num_agents=1)
     
