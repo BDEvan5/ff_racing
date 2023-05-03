@@ -66,6 +66,8 @@ class FrenetFramePlanner:
         # scan = scan[scan < 10]
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
+        xs = xs[180:-180]
+        ys = ys[180:-180]
 
         pts = np.hstack((xs[:, None], ys[:, None]))
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
@@ -90,6 +92,8 @@ class FrenetFramePlanner:
     def plot_centerline(self, scan, centerline):
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
+        xs = xs[180:-180]
+        ys = ys[180:-180]
         
         plt.figure(1)
         plt.clf()
@@ -110,7 +114,7 @@ class FrenetFramePlanner:
         position = np.array([0, 0])
         progress = np.linalg.norm(position - center_line[0])
         
-        lookahead = 1.6 + progress
+        lookahead = 2
         lookahead = min(lookahead, lengths[-1]) # make sure lookahead within visible distance.
          
         lookahead_point = interp_2d_points(lookahead, lengths, center_line)
@@ -121,7 +125,7 @@ class FrenetFramePlanner:
         steering_angle = get_steering_actuation(theta, lookahead_point, position, LOOKAHEAD_DISTANCE, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
         
-        speed = 2
+        speed = 3
 
         return np.array([steering_angle, speed])
         
