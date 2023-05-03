@@ -34,7 +34,8 @@ class FrenetFramePlanner:
         speed = obs['linear_vels_x'][0]
         
         np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
-        
+        self.run_scan_centerline(obs['scans'][0])
+
         self.counter += 1
         return np.array([0, 5])
         
@@ -44,6 +45,22 @@ class FrenetFramePlanner:
         
         
         return action
+    
+    def run_scan_centerline(self, scan):
+        n2 = 540
+
+        xs = self.coses * scan
+        ys = self.sines * scan
+
+        c_xs = (xs[:n2] + xs[n2:][::-1])/2
+        c_ys = (ys[:n2] + ys[n2:][::-1])/2
+
+        plt.figure(1)
+        plt.clf()
+        plt.plot(xs, ys, label="Lidar")
+        plt.plot(c_xs, c_ys, label="Center")
+
+        plt.pause(0.001)
         
         
     def run_centerline_extraction(self, scan):
