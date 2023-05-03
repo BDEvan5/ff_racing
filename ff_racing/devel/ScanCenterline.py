@@ -39,16 +39,18 @@ def end_pt_line():
     ys = sines * lidar_data
 
     pts = np.hstack((xs[:, None], ys[:, None]))
-    dists = np.linalg.norm(np.diff(pts, axis=0))
-    min_idx = np.argmin(dists)
+    pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+    min_idx = np.argmax(pt_distances)
 
     c_xs = (xs[:n2] + xs[n2:][::-1])/2
     c_ys = (ys[:n2] + ys[n2:][::-1])/2
 
-    plt.plot(xs, ys, label="Lidar")
+    plt.plot(xs, ys, 'x-', label="Lidar")
     plt.plot(c_xs, c_ys, label="Center")
 
     plt.plot(pts[min_idx:min_idx+2, 0], pts[min_idx:min_idx+2, 1], 'red')
+    
+    plt.gca().set_aspect('equal', adjustable='box')
 
     plt.show()
 
