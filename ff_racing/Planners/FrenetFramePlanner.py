@@ -27,7 +27,8 @@ class FrenetFramePlanner:
         
         if not os.path.exists(path): os.mkdir(path)
         if not os.path.exists(path + "Scans/"): os.mkdir(path+ "Scans/")
-        if not os.path.exists(path + "ScanData/"): os.mkdir(path+ "ScanData/")
+        # if not os.path.exists(path + "ScanData/"): os.mkdir(path+ "ScanData/")
+        if not os.path.exists(path + "LocalMaps/"): os.mkdir(path+ "LocalMaps/")
         # self.vehicle_state_history = VehicleStateHistory(name, "ff")
         
         fov2 = 4.7 / 2
@@ -39,14 +40,17 @@ class FrenetFramePlanner:
         
     def plan(self, obs):
         speed = obs['linear_vels_x'][0]
+        # scan = np.clip(obs['scans'][0], 0, 10)
+        scan = obs['scans'][0]
+        
         
         np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
-        center_line = self.run_scan_centerline(obs['scans'][0])
-        self.plot_centerline(obs['scans'][0], center_line)
+        center_line = self.run_scan_centerline(scan)
+        self.plot_centerline(scan, center_line)
 
         action = self.pure_pursuit(center_line)
 
-        plt.pause(0.1)
+        plt.savefig(self.path + "LocalMaps/" + f"{self.name}_{self.counter}.svg")
         self.counter += 1
         return action
         
@@ -58,8 +62,10 @@ class FrenetFramePlanner:
         return action
     
     def run_scan_centerline(self, scan):
-        xs = self.coses * scan
-        ys = self.sines * scan
+        # scan = np.clip(scan, 0, 10)
+        # scan = scan[scan < 10]
+        xs = self.coses[scan < 10] * scan[scan < 10]
+        ys = self.sines[scan < 10] * scan[scan < 10]
 
         pts = np.hstack((xs[:, None], ys[:, None]))
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
@@ -81,9 +87,9 @@ class FrenetFramePlanner:
         
         return center_line
         
-    def plot_centerline(self, lidar, centerline):
-        xs = self.coses * lidar
-        ys = self.sines * lidar
+    def plot_centerline(self, scan, centerline):
+        xs = self.coses[scan < 10] * scan[scan < 10]
+        ys = self.sines[scan < 10] * scan[scan < 10]
         
         plt.figure(1)
         plt.clf()
