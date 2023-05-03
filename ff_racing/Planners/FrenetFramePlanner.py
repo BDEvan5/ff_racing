@@ -39,10 +39,7 @@ class FrenetFramePlanner:
         self.counter = 0
         
     def plan(self, obs):
-        speed = obs['linear_vels_x'][0]
-        # scan = np.clip(obs['scans'][0], 0, 10)
         scan = obs['scans'][0]
-        
         
         np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
         center_line = self.run_scan_centerline(scan)
@@ -54,16 +51,7 @@ class FrenetFramePlanner:
         self.counter += 1
         return action
         
-        center_line = self.run_centerline_extraction(obs['scans'][0])
-        
-        action = self.plan_frenet_action(center_line, speed)
-        
-        
-        return action
-    
     def run_scan_centerline(self, scan):
-        # scan = np.clip(scan, 0, 10)
-        # scan = scan[scan < 10]
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
         xs = xs[180:-180]
@@ -103,19 +91,16 @@ class FrenetFramePlanner:
         plt.plot(0, 0, 'x', color='black', label="Origin")
 
         plt.gca().set_aspect('equal', adjustable='box')
-
-        
-        
+       
     def pure_pursuit(self, center_line):
         distances = np.linalg.norm(center_line[1:] - center_line[:-1], axis=1)
         lengths = np.cumsum(distances)
         lengths = np.insert(lengths, 0, 0)
         
         position = np.array([0, 0])
-        progress = np.linalg.norm(position - center_line[0])
-        
         lookahead = 2
-        lookahead = min(lookahead, lengths[-1]) # make sure lookahead within visible distance.
+        
+        lookahead = min(lookahead, lengths[-1]) 
          
         lookahead_point = interp_2d_points(lookahead, lengths, center_line)
         plt.plot(lookahead_point[0], lookahead_point[1], 'o', color='green', label="Lookahead")
@@ -128,75 +113,6 @@ class FrenetFramePlanner:
         speed = 3
 
         return np.array([steering_angle, speed])
-        
-    def run_centerline_extraction(self, scan):
-        save_path = self.path + "Scans/"
-        plt.figure()
-        plt.plot(scan*self.coses, scan*self.sines)
-        
-        plt.gca().set_aspect('equal', adjustable='box')
-        
-        plt.xticks([])
-        plt.yticks([])
-        ax = plt.gca()
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        ax.spines['bottom'].set_visible(False)
-        
-        plt.tight_layout()
-        plt.savefig(save_path + f"{self.name}_{self.counter}.png", bounding_box_inches='tight', pad_inches=0, dpi=50)
-        
-        self.process_img()
-        
-        plt.show()
-    
-    def process_img(self):
-        img = cv.imread(self.path + "Scans/" + f"{self.name}_{self.counter}.png")
-        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-        
-        edges = cv.Canny(img, 100, 250, apertureSize=5, L2gradient=True)
-
-        # Apply Hough Line Transform to detect lines
-        lines = cv.HoughLines(edges, 1, np.pi/180, 200)
-        
-        line_img = np.zeros_like(img)
-        if lines is not None:
-            for line in lines:
-                rho, theta = line[0]
-                a = np.cos(theta)
-                b = np.sin(theta)
-                x0 = a * rho
-                y0 = b * rho
-                x1 = int(x0 + 1000 * (-b))
-                y1 = int(y0 + 1000 * (a))
-                x2 = int(x0 - 1000 * (-b))
-                y2 = int(y0 - 1000 * (a))
-                cv.line(line_img, (x1, y1), (x2, y2), (255, 255, 255), 1)
-
-        # Display the image with the detected lines
-        cv.imshow('Lines', line_img)
-        cv.waitKey(0)
-        
-        # blur = cv.GaussianBlur(gray, (5, 5), cv.BORDER_DEFAULT)
-        # _, thresh = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
-        # ret, thresh = cv.threshold(blur, 200, 255,
-                                # cv.THRESH_BINARY_INV)
-
-
-        # cv.imshow('ocv', gray)
-        # cv.waitKey(0)
-        
-
-        # c, _ = cv.findContours(gray,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
-        # c, _ = cv.findContours(thresh,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_NONE)
-        
-        cv.drawContours(img, c, -1, (0,255,0), 3)
-        cv.imshow('ocv', img)
-        cv.waitKey(10 * 1000)
-        
-        return img
-    
         
     def plan_frenet_action(self, center_line, speed):
         
