@@ -54,6 +54,12 @@ def end_pt_line():
 
     plt.show()
     
+def interp_2d_points(ss, xp, points):
+    xs = np.interp(ss, xp, points[:, 0])
+    ys = np.interp(ss, xp, points[:, 1])
+    
+    return xs, ys
+    
 def true_centerline():
     lidar_data = np.load("Data/MyFrenetPlanner/ScanData/MyFrenetPlanner_0.npy")
 
@@ -70,20 +76,14 @@ def true_centerline():
     pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
     mid_idx = np.argmax(pt_distances)
 
-    length_1 = np.sum(pt_distances[:mid_idx])
-    length_2 = np.sum(pt_distances[mid_idx:])
-    
-    l1_ss = np.linspace(0, length_1, 50)
-    l1_ss = np.linspace(0, length_2, 50)
-    
     l1_cs = np.cumsum(pt_distances[:mid_idx+1])
     l2_cs = np.cumsum(pt_distances[mid_idx:])
+    
+    l1_ss = np.linspace(0, l1_cs[-1], 50)
+    l1_ss = np.linspace(0, l2_cs[-1], 50)
 
-    l1_xs = np.interp(l1_ss, l1_cs, pts[:mid_idx+1, 0])
-    l1_ys = np.interp(l1_ss, l1_cs, pts[:mid_idx+1, 1])
-    l2_xs = np.interp(l1_ss, l2_cs, pts[mid_idx+1:, 0])
-    l2_ys = np.interp(l1_ss, l2_cs, pts[mid_idx+1:, 1])
-
+    l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:mid_idx+1])
+    l2_xs, l2_ys = interp_2d_points(l1_ss, l2_cs, pts[mid_idx+1:])
 
     c_xs = (l1_xs + l2_xs[::-1])/2
     c_ys = (l1_ys + l2_ys[::-1])/2

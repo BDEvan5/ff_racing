@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ff_racing.PlannerUtils.VehicleStateHistory import VehicleStateHistory
 from ff_racing.PlannerUtils.TrackLine import TrackLine
+from numba import njit  
 
 import cv2 as cv
 from PIL import Image
@@ -12,6 +13,12 @@ WHEELBASE = 0.33
 MAX_STEER = 0.4
 MAX_SPEED = 6
 
+    
+def interp_2d_points(ss, xp, points):
+    xs = np.interp(ss, xp, points[:, 0])
+    ys = np.interp(ss, xp, points[:, 1])
+    
+    return xs, ys
 
 class FrenetFramePlanner:
     def __init__(self, name, path):
@@ -34,10 +41,14 @@ class FrenetFramePlanner:
         speed = obs['linear_vels_x'][0]
         
         np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
-        self.run_scan_centerline(obs['scans'][0])
+        center_line = self.run_scan_centerline(obs['scans'][0])
+        self.plot_centerline(obs['scans'][0], center_line)
 
+        action = self.pure_pursuit(center_line)
+
+        plt.pause(0.1)
         self.counter += 1
-        return np.array([0, 5])
+        return action
         
         center_line = self.run_centerline_extraction(obs['scans'][0])
         
@@ -47,21 +58,66 @@ class FrenetFramePlanner:
         return action
     
     def run_scan_centerline(self, scan):
-        n2 = 540
-
         xs = self.coses * scan
         ys = self.sines * scan
 
-        c_xs = (xs[:n2] + xs[n2:][::-1])/2
-        c_ys = (ys[:n2] + ys[n2:][::-1])/2
+        pts = np.hstack((xs[:, None], ys[:, None]))
+        pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+        mid_idx = np.argmax(pt_distances)
 
+        l1_cs = np.cumsum(pt_distances[:mid_idx+1])
+        l2_cs = np.cumsum(pt_distances[mid_idx:])
+        
+        l1_ss = np.linspace(0, l1_cs[-1], 50)
+        l1_ss = np.linspace(0, l2_cs[-1], 50)
+
+        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:mid_idx+1])
+        l2_xs, l2_ys = interp_2d_points(l1_ss, l2_cs, pts[mid_idx+1:])
+
+        c_xs = (l1_xs + l2_xs[::-1])/2
+        c_ys = (l1_ys + l2_ys[::-1])/2
+        
+        center_line = np.hstack((c_xs[:, None], c_ys[:, None]))
+        
+        return center_line
+        
+    def plot_centerline(self, lidar, centerline):
+        xs = self.coses * lidar
+        ys = self.sines * lidar
+        
         plt.figure(1)
         plt.clf()
-        plt.plot(xs, ys, label="Lidar")
-        plt.plot(c_xs, c_ys, label="Center")
-
-        plt.pause(0.001)
+        plt.plot(xs, ys, 'x', label="Lidar")
         
+        plt.plot(centerline[:, 0], centerline[:, 1], '-', color='red', label="Center", linewidth=3)
+        plt.plot(0, 0, 'x', color='black', label="Origin")
+
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        
+        
+    def pure_pursuit(self, center_line):
+        distances = np.linalg.norm(center_line[1:] - center_line[:-1], axis=1)
+        lengths = np.cumsum(distances)
+        lengths = np.insert(lengths, 0, 0)
+        
+        position = np.array([0, 0])
+        progress = np.linalg.norm(position - center_line[0])
+        
+        lookahead = 1.6 + progress
+        lookahead = min(lookahead, lengths[-1]) # make sure lookahead within visible distance.
+         
+        lookahead_point = interp_2d_points(lookahead, lengths, center_line)
+        plt.plot(lookahead_point[0], lookahead_point[1], 'o', color='green', label="Lookahead")
+        
+        theta = 0 #! TODO: get calculate theta relative to center line.
+        position = np.array([0, 0])
+        steering_angle = get_steering_actuation(theta, lookahead_point, position, LOOKAHEAD_DISTANCE, WHEELBASE)
+        steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
+        
+        speed = 2
+
+        return np.array([steering_angle, speed])
         
     def run_centerline_extraction(self, scan):
         save_path = self.path + "Scans/"
@@ -141,4 +197,14 @@ class FrenetFramePlanner:
     def done_callback(self, obs):
         pass
         
-        
+     
+    
+# @njit(fastmath=False, cache=True)
+def get_steering_actuation(pose_theta, lookahead_point, position, lookahead_distance, wheelbase):
+    waypoint_y = np.dot(np.array([np.sin(-pose_theta), np.cos(-pose_theta)]), lookahead_point[0:2]-position)
+    if np.abs(waypoint_y) < 1e-6:
+        return 0.0
+    radius = 1/(2.0*waypoint_y/lookahead_distance**2)
+    steering_angle = np.arctan(wheelbase/radius)
+    return steering_angle
+   
