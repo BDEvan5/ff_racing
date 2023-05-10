@@ -7,6 +7,7 @@ from numba import njit
 import cv2 as cv
 from PIL import Image
 import os
+from ff_racing.PlannerUtils.LocalMap import LocalMap
 
 LOOKAHEAD_DISTANCE = 1
 WHEELBASE = 0.33
@@ -38,20 +39,23 @@ class FrenetFramePlanner:
         
         self.counter = 0
         
+        self.local_map = None
+        
     def plan(self, obs):
         scan = obs['scans'][0]
         
         np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
         center_line = self.run_scan_centerline(scan)
-        self.plot_centerline(scan, center_line)
 
-        action = self.pure_pursuit(center_line)
+        action = self.pure_pursuit()
 
         plt.savefig(self.path + "LocalMaps/" + f"{self.name}_{self.counter}.svg")
+        plt.pause(0.0001)
         self.counter += 1
         return action
         
     def run_scan_centerline(self, scan):
+        n_pts = 10
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
         xs = xs[180:-180]
@@ -64,35 +68,34 @@ class FrenetFramePlanner:
         l1_cs = np.cumsum(pt_distances[:mid_idx+1])
         l2_cs = np.cumsum(pt_distances[mid_idx:])
         
-        l1_ss = np.linspace(0, l1_cs[-1], 50)
-        l1_ss = np.linspace(0, l2_cs[-1], 50)
+        l1_ss = np.linspace(0, l1_cs[-1], n_pts)
+        l2_ss = np.linspace(0, l2_cs[-1], n_pts)
 
         l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:mid_idx+1])
-        l2_xs, l2_ys = interp_2d_points(l1_ss, l2_cs, pts[mid_idx+1:])
-
+        l2_xs, l2_ys = interp_2d_points(l2_ss, l2_cs, pts[mid_idx+1:])
+        
         c_xs = (l1_xs + l2_xs[::-1])/2
         c_ys = (l1_ys + l2_ys[::-1])/2
-        
         center_line = np.hstack((c_xs[:, None], c_ys[:, None]))
         
-        return center_line
+        #Reregularise the center line distances
+        cl_dists = np.linalg.norm(center_line[1:] - center_line[:-1], axis=1)
+        cl_cs = np.cumsum(cl_dists)
+        cl_cs = np.insert(cl_cs, 0, 0)
+        cl_ss = np.linspace(0, cl_cs[-1], n_pts)
+        cl_xs, cl_ys = interp_2d_points(cl_ss, cl_cs, center_line)
         
-    def plot_centerline(self, scan, centerline):
-        xs = self.coses[scan < 10] * scan[scan < 10]
-        ys = self.sines[scan < 10] * scan[scan < 10]
-        xs = xs[180:-180]
-        ys = ys[180:-180]
-        
-        plt.figure(1)
-        plt.clf()
-        plt.plot(xs, ys, 'x', label="Lidar")
-        
-        plt.plot(centerline[:, 0], centerline[:, 1], '-', color='red', label="Center", linewidth=3)
-        plt.plot(0, 0, 'x', color='black', label="Origin")
+        center_line = np.hstack((cl_xs[:, None], cl_ys[:, None]))
 
-        plt.gca().set_aspect('equal', adjustable='box')
+        ws = np.ones(n_pts)
+        
+        self.local_map = LocalMap(center_line, ws)
        
-    def pure_pursuit(self, center_line):
+    def pure_pursuit(self, ):
+        assert self.local_map is not None, "No local map has been created"
+        
+        center_line = self.local_map.pts
+        
         distances = np.linalg.norm(center_line[1:] - center_line[:-1], axis=1)
         lengths = np.cumsum(distances)
         lengths = np.insert(lengths, 0, 0)
@@ -103,6 +106,7 @@ class FrenetFramePlanner:
         lookahead = min(lookahead, lengths[-1]) 
          
         lookahead_point = interp_2d_points(lookahead, lengths, center_line)
+        self.local_map.plot_map()
         plt.plot(lookahead_point[0], lookahead_point[1], 'o', color='green', label="Lookahead")
         
         theta = 0 #! TODO: get calculate theta relative to center line.
