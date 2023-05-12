@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import trajectory_planning_helpers as tph
 import glob
+from matplotlib.collections import LineCollection
     
 def interp_2d_points(ss, xp, points):
     xs = np.interp(ss, xp, points[:, 0])
@@ -34,6 +35,7 @@ class LocalMap:
         self.lengths = np.insert(np.cumsum(self.distances), 0, 0)
         
         self.t_pts = None
+        #! add the self inits here
         
     def calculate_nvecs(self):
         self.el_lengths = np.linalg.norm(np.diff(self.pts, axis=0), axis=1)
@@ -83,8 +85,82 @@ class LocalMap:
 
         self.ss = s_raceline_interp
         self.raceline = raceline_interp
-        self.psi_r, self.kappa_r = tph.calc_head_curv_num.calc_head_curv_num(self.raceline, el_lengths_raceline_interp_cl, True)
+        self.psi_r, self.kappa_r = tph.calc_head_curv_num.calc_head_curv_num(self.raceline, el_lengths_raceline_interp_cl[:-1], False)
 
+    def generate_max_speed_profile(self):
+        ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
+        ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
+        mu = 0.54 * np.ones(len(self.kappa_r)) # this is why my race lines are so slow......
+        v_max = 8
+        m_vehicle = 3.4
+        el_lengths = np.linalg.norm(np.diff(self.raceline, axis=0), axis=1)
+        
+        
+        plt.figure(3)
+        plt.clf()
+        plt.plot(self.kappa_r)
+        plt.plot(np.abs(self.kappa_r))
+        plt.title("Curvature Profile")
+        plt.ylabel("Curvature (rad/s)")
+        plt.ylim([-0.3, 0.3])
+        plt.grid(True)
+        plt.pause(0.01)
+
+        self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, el_lengths, False, 0, m_vehicle, ggv=ggv, mu=mu, v_max=v_max, v_start=v_max)
+
+        plt.figure(2)
+        plt.clf()
+        plt.plot(self.vs)
+        plt.title("Velocity Profile")
+        plt.ylabel("Velocity (m/s)")
+        plt.grid(True)
+        plt.ylim([0, 8.5])
+        plt.pause(0.01)
+
+        ts = tph.calc_t_profile.calc_t_profile(self.vs, el_lengths, 0)
+        print(f"Time: {ts[-1]}")
+
+        self.acc = tph.calc_ax_profile.calc_ax_profile(self.vs, el_lengths, True)
+
+    def save_racing_line(self):
+        save_arr = np.concatenate([self.ss[:, None], self.raceline, self.psi_r[:, None], self.kappa_r[:, None], self.vs[:, None], self.acc[:, None]], axis=1)
+
+        np.savetxt("maps/"+ self.map_name+ '_raceline.csv', save_arr, delimiter=',')
+
+    def plot_speed_profile(self):
+        plt.figure(1)
+        plt.clf()
+        plt.title("Racing Line Velocity Profile")
+
+        plt.plot(self.pts[:, 0], self.pts[:, 1], '-', linewidth=2, color='blue')
+
+        vs = self.vs
+        points = self.raceline.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        norm = plt.Normalize(0, 8)
+        lc = LineCollection(segments, cmap='jet', norm=norm)
+        lc.set_array(vs)
+        lc.set_linewidth(3)
+        line = plt.gca().add_collection(lc)
+        plt.colorbar(line)
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        ns = self.nvecs 
+        ws = np.ones_like(self.nvecs) * self.ws[:, None]
+        l_line = self.pts - np.array([ns[:, 0] * ws[:, 0], ns[:, 1] * ws[:, 0]]).T
+        r_line = self.pts + np.array([ns[:, 0] * ws[:, 1], ns[:, 1] * ws[:, 1]]).T
+
+        plt.plot(l_line[:, 0], l_line[:, 1], linewidth=1, color='green')
+        plt.plot(r_line[:, 0], r_line[:, 1], linewidth=1, color='green')
+
+        plt.xticks([])
+        plt.yticks([])
+        plt.tight_layout()
+        plt.legend(["Track", "Raceline", "Boundaries"], ncol=3)
+
+        # plt.show()
+        plt.pause(1)
 
 
     def plot_raceline(self):
@@ -141,7 +217,10 @@ def run_loop(path="Data/LocalMapPlanner/LocalMapData/"):
         data = np.load(lap)
         local_map = LocalMap(data[:, :2], data[:, 2], i)
         local_map.generate_minimum_curvature_path()
-        local_map.plot_raceline()
+        # local_map.plot_raceline()
+        
+        local_map.generate_max_speed_profile()
+        local_map.plot_speed_profile()
 
         if i > 20:
             break
