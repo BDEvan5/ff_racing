@@ -28,28 +28,16 @@ def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
         
 
 def test_frenet_planner():
-    map_name = "aut" # "aut", "esp", "gbr", "mco"
-    agent_name = "devel_ff"
+    # map_name = "aut" # "aut", "esp", "gbr", "mco"
+    map_name = "mco"
     n_test_laps = 1
     
     env = F110Env(map=map_name, num_agents=1)
     
-    agent_name = "MyFrenetPlanner"
+    agent_name = "LocalMapPlanner"
     planner = FrenetFramePlanner(agent_name, f"Data/{agent_name}/")
     run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
-  
-  
-def test_endToEnd_agent_all_maps():
-    map_names = ["aut", "esp", "gbr", "mco"]
-    agent_name = "myFavouriteAgent_SAC"
-    n_test_laps = 2
-    
-    for map_name in map_names:
-        env = F110Env(map=map_name, num_agents=1)
-        TestAgent = TestSAC(agent_name, f"Data/{agent_name}/") # or DDPG, TD3
-        planner = EndToEndTest(TestAgent, map_name, agent_name)
-        run_simulation_loop_laps(env, planner, n_test_laps)
   
   
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from typing import Any
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 import trajectory_planning_helpers as tph
     
@@ -8,6 +9,10 @@ def interp_2d_points(ss, xp, points):
     ys = np.interp(ss, xp, points[:, 1])
     
     return xs, ys
+
+def ensure_path_exists(path):
+    if not os.path.exists(path): 
+        os.mkdir(path)
 
 class LocalMap:
     def __init__(self, pts, ws) -> None:
@@ -54,4 +59,10 @@ class LocalMap:
         # plt.ylim(-10, 10)
 
         plt.gca().set_aspect('equal', adjustable='box')
+        
+    def save_map(self, path, number):
+        # save the data into a folder fo later use
+        ensure_path_exists(path + "LocalMapData/")
+        data = np.concatenate([self.pts, self.ws[:, None]], axis=1)
+        np.save(path + "LocalMapData/" + f"local_map_{number}.npy", data)
         

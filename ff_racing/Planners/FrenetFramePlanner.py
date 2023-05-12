@@ -28,7 +28,7 @@ class FrenetFramePlanner:
         
         if not os.path.exists(path): os.mkdir(path)
         if not os.path.exists(path + "Scans/"): os.mkdir(path+ "Scans/")
-        # if not os.path.exists(path + "ScanData/"): os.mkdir(path+ "ScanData/")
+        if not os.path.exists(path + "ScanData/"): os.mkdir(path+ "ScanData/")
         if not os.path.exists(path + "LocalMaps/"): os.mkdir(path+ "LocalMaps/")
         # self.vehicle_state_history = VehicleStateHistory(name, "ff")
         
@@ -90,6 +90,7 @@ class FrenetFramePlanner:
         ws = np.ones(n_pts)
         
         self.local_map = LocalMap(center_line, ws)
+        self.local_map.save_map(self.path, self.counter)
        
     def pure_pursuit(self, ):
         assert self.local_map is not None, "No local map has been created"
