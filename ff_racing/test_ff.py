@@ -1,11 +1,12 @@
 from ff_racing.f1tenth_gym.f110_env import F110Env
 
 from ff_racing.Planners.FrenetFramePlanner import FrenetFramePlanner
+from ff_racing.Planners.LocalMap_TrajOpt import LocalMap_TrajOpt
 
 import numpy as np
 
 RENDER_ENV = False
-# RENDER_ENV = True
+RENDER_ENV = True
 
 
 def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
@@ -34,8 +35,10 @@ def test_frenet_planner():
     
     env = F110Env(map=map_name, num_agents=1)
     
-    agent_name = "LocalMapPlanner"
-    planner = FrenetFramePlanner(agent_name, f"Data/{agent_name}/")
+    # agent_name = "LocalMapPlanner"
+    # planner = FrenetFramePlanner(agent_name, f"Data/{agent_name}/")
+    agent_name = "LocalMap_TrajOpt"
+    planner = LocalMap_TrajOpt(agent_name, f"Data/{agent_name}/")
     run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
   
