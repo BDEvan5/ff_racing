@@ -93,11 +93,9 @@ class LocalMapExtraction:
         plt.pause(0.1)
         
     
-def run_loop(path="Data/LocalMapPlanner/ScanData/"):
+def run_loop(path="Data/LocalMapPlanner2/ScanData/"):
     laps = glob.glob(path + "LocalMapPlanner*.npy")
-    # laps = glob.glob(path + "local_map_*.npy")
     laps.sort()
-    # print(laps)
     
     for i, lap in enumerate(laps):
         print(f"Processing lap {i}")
