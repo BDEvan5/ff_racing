@@ -43,9 +43,11 @@ class FrenetFramePlanner:
         
     def plan(self, obs):
         scan = obs['scans'][0]
+        pose = np.array([obs['poses_x'][0], obs['poses_y'][0], obs['poses_theta'][0]])
         
         np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
         center_line = self.run_scan_centerline(scan)
+        self.local_map.plot_map_img(scan, pose)
 
         action = self.pure_pursuit()
 
@@ -55,7 +57,7 @@ class FrenetFramePlanner:
         return action
         
     def run_scan_centerline(self, scan):
-        n_pts = 10
+        n_pts = 20
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
         xs = xs[180:-180]
@@ -87,10 +89,11 @@ class FrenetFramePlanner:
         
         center_line = np.hstack((cl_xs[:, None], cl_ys[:, None]))
 
-        ws = np.ones(n_pts)
+        ws = np.ones(n_pts) * 0.8
         
         self.local_map = LocalMap(center_line, ws)
         self.local_map.save_map(self.path, self.counter)
+        # self.local_map.plot_map(scan)
        
     def pure_pursuit(self, ):
         assert self.local_map is not None, "No local map has been created"
@@ -107,7 +110,6 @@ class FrenetFramePlanner:
         lookahead = min(lookahead, lengths[-1]) 
          
         lookahead_point = interp_2d_points(lookahead, lengths, center_line)
-        self.local_map.plot_map()
         plt.plot(lookahead_point[0], lookahead_point[1], 'o', color='green', label="Lookahead")
         
         theta = 0 #! TODO: get calculate theta relative to center line.

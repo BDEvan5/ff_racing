@@ -43,31 +43,12 @@ class LocalMap:
         self.nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(self.psi-np.pi/2)
         
     def get_lookahead_point(self, lookahead_distance):
-        lookahead = min(lookahead, self.lengths[-1]) 
+        lookahead = min(lookahead_distance, self.lengths[-1]) 
          
         lookahead_point = interp_2d_points(lookahead, self.lengths, self.pts)
         
         return lookahead_point
     
-    def plot_map(self):
-        l1 = self.pts + self.nvecs * self.ws[:, None]
-        l2 = self.pts - self.nvecs * self.ws[:, None]
-        
-        plt.figure(1)
-        plt.clf()
-        plt.plot(self.pts[:, 0], self.pts[:, 1], '-', color='red', label="Center", linewidth=3)
-        plt.plot(0, 0, 'x', color='black', label="Origin")
-
-        plt.plot(l1[:, 0], l1[:, 1], color='green')
-        plt.plot(l2[:, 0], l2[:, 1], color='green')
-
-        for i in range(len(self.ws)):
-            xs = [l1[i, 0], l2[i, 0]]
-            ys = [l1[i, 1], l2[i, 1]]
-            plt.plot(xs, ys)
-
-        plt.gca().set_aspect('equal', adjustable='box')
-        
     def generate_minimum_curvature_path(self):
         coeffs_x, coeffs_y, M, normvec_normalized = tph.calc_splines.calc_splines(self.pts, self.el_lengths, self.psi[0], self.psi[-1])
         self.psi = self.psi - np.pi/2
@@ -90,7 +71,7 @@ class LocalMap:
     def generate_max_speed_profile(self):
         ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
         ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
-        mu = 1 * np.ones(len(self.kappa_r)) # this is why my race lines are so slow......
+        mu = 0.5 * np.ones(len(self.kappa_r)) # this is why my race lines are so slow......
         v_max = 8
         m_vehicle = 3.4
         el_lengths = np.linalg.norm(np.diff(self.raceline, axis=0), axis=1)
@@ -127,6 +108,25 @@ class LocalMap:
 
         np.savetxt("maps/"+ self.map_name+ '_raceline.csv', save_arr, delimiter=',')
 
+    def plot_map(self):
+        l1 = self.pts + self.nvecs * self.ws[:, None]
+        l2 = self.pts - self.nvecs * self.ws[:, None]
+        
+        plt.figure(1)
+        plt.clf()
+        plt.plot(self.pts[:, 0], self.pts[:, 1], '-', color='red', label="Center", linewidth=3)
+        plt.plot(0, 0, 'x', color='black', label="Origin")
+
+        plt.plot(l1[:, 0], l1[:, 1], color='green')
+        plt.plot(l2[:, 0], l2[:, 1], color='green')
+
+        for i in range(len(self.ws)):
+            xs = [l1[i, 0], l2[i, 0]]
+            ys = [l1[i, 1], l2[i, 1]]
+            plt.plot(xs, ys)
+
+        plt.gca().set_aspect('equal', adjustable='box')
+        
     def plot_speed_profile(self):
         plt.figure(1)
         plt.clf()
@@ -162,7 +162,6 @@ class LocalMap:
         # plt.show()
         plt.pause(1)
 
-
     def plot_raceline(self):
         plt.figure(3)
         plt.clf()
@@ -187,6 +186,7 @@ class LocalMap:
         plt.savefig(path + f"OptimalCurves_{self.counter}.svg")
         # plt.pause(0.001)   
         # plt.show()
+
 
 def normalise_raceline(raceline, step_size, psis):
     r_el_lengths = np.linalg.norm(np.diff(raceline, axis=0), axis=1)
