@@ -26,11 +26,12 @@ V_MAX = 8
 VEHICLE_MASS = 3.4
 
 class LocalMap:
-    def __init__(self) -> None:
+    def __init__(self, path) -> None:
         fov2 = 4.7 / 2
         self.angles = np.linspace(-fov2, fov2, 1080)
         self.coses = np.cos(self.angles)
         self.sines = np.sin(self.angles)
+        self.xs, self.ys = None, None 
 
         self.track = None
         self.el_lengths = None
@@ -45,13 +46,25 @@ class LocalMap:
         self.el_lengths_r = None
         self.s_raceline = None
 
+        self.local_map_img_path = path + "LocalMapImgs/"
+        self.local_map_data_path = path + "LocalMapData/"
+        self.raceline_img_path = path + "RacingLineImgs/"
+        self.raceline_data_path = path + "RacingLineData/"
+
+        ensure_path_exists(self.local_map_img_path)
+        # ensure_path_exists(self.local_map_data_path)
+        ensure_path_exists(self.raceline_img_path)
+        # ensure_path_exists(self.racing_line_data_path)
+        self.counter = 0
+
     def generate_local_map(self, scan):
+        self.counter += 1
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
-        xs = xs[180:-180]
-        ys = ys[180:-180]
+        self.xs = xs[180:-180]
+        self.ys = ys[180:-180]
 
-        pts = np.hstack((xs[:, None], ys[:, None]))
+        pts = np.hstack((self.xs[:, None], self.ys[:, None]))
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
         mid_idx = np.argmax(pt_distances)
 
@@ -110,20 +123,42 @@ class LocalMap:
         
         self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, self.el_lengths_r, False, 0, VEHICLE_MASS, ggv=ggv, mu=mu, v_max=V_MAX, v_start=starting_speed)
 
+    def plot_save_local_map(self):
+        l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]
+        l2 = self.track[:, :2] - self.nvecs * self.track[:, 3][:, None]
 
+        plt.figure(1)
+        plt.clf()
+        plt.plot(self.xs, self.ys, '.', color='blue', alpha=0.7)
+        plt.plot(self.track[:, 0], self.track[:, 1], '-', color='red', label="Center", linewidth=3)
+        plt.plot(0, 0, 'x', color='black', label="Origin")
+
+        plt.plot(l1[:, 0], l1[:, 1], color='green')
+        plt.plot(l2[:, 0], l2[:, 1], color='green')
+
+        for i in range(len(self.track)):
+            xs = [l1[i, 0], l2[i, 0]]
+            ys = [l1[i, 1], l2[i, 1]]
+            plt.plot(xs, ys, 'orange')
+
+        plt.title("Local Map")
+
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        plt.savefig(self.local_map_img_path + f"Local_map_{self.counter}.svg")
         
-    def plot_local_raceline(self):
+    def plot_save_raceline(self):
         plt.figure(1)
         plt.clf()
         plt.title("Racing Line Velocity Profile")
 
-        plt.plot(self.pts[:, 0], self.pts[:, 1], '-', linewidth=2, color='blue')
+        plt.plot(self.track[:, 0], self.track[:, 1], '-', linewidth=2, color='blue')
 
         vs = self.vs
         points = self.raceline.reshape(-1, 1, 2)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
-        norm = plt.Normalize(0, 8)
+        norm = plt.Normalize(2, 8)
         lc = LineCollection(segments, cmap='jet', norm=norm)
         lc.set_array(vs)
         lc.set_linewidth(3)
@@ -131,23 +166,17 @@ class LocalMap:
         plt.colorbar(line)
         plt.gca().set_aspect('equal', adjustable='box')
 
-        ns = self.nvecs 
-        ws = np.ones_like(self.nvecs) * self.ws[:, None]
-        l_line = self.pts - np.array([ns[:, 0] * ws[:, 0], ns[:, 1] * ws[:, 0]]).T
-        r_line = self.pts + np.array([ns[:, 0] * ws[:, 1], ns[:, 1] * ws[:, 1]]).T
-
-        plt.plot(l_line[:, 0], l_line[:, 1], linewidth=1, color='green')
-        plt.plot(r_line[:, 0], r_line[:, 1], linewidth=1, color='green')
+        l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]
+        l2 = self.track[:, :2] - self.nvecs * self.track[:, 3][:, None]
+        plt.plot(l1[:, 0], l1[:, 1], color='green')
+        plt.plot(l2[:, 0], l2[:, 1], color='green')
 
         plt.xticks([])
         plt.yticks([])
         plt.tight_layout()
         plt.legend(["Track", "Raceline", "Boundaries"], ncol=3)
 
-        # plt.show()
-        plt.pause(0.0001)
-
-
+        plt.savefig(self.raceline_img_path + f"Raceline_{self.counter}.svg")
 
 
 

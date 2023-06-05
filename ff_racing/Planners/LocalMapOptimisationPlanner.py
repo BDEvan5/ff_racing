@@ -33,21 +33,23 @@ class LocalOptimisationPlanner:
         
         ensure_path_exists(path)
         ensure_path_exists(path + "Scans/")
-        ensure_path_exists(path + "LocalMaps/")
-        ensure_path_exists(path + "RacingLines/")
         self.vehicle_state_history = VehicleStateHistory(name, "LocalMap")
                 
         self.counter = 0
-        self.local_map = LocalMap()
+        self.local_map = LocalMap(self.path)
         
     def plan(self, obs):
         scan = obs['scans'][0]
         
         self.local_map.generate_local_map(scan)
+        self.local_map.plot_save_local_map()
         self.local_map.generate_minimum_curvature_path()
         self.local_map.generate_max_speed_profile()
+        self.local_map.plot_save_raceline()
 
         action = self.local_map_pure_pursuit()
+
+        self.vehicle_state_history.add_memory_entry(obs, action)
 
         self.counter += 1
         return action
@@ -70,6 +72,7 @@ class LocalOptimisationPlanner:
         return np.array([steering_angle, speed])
         
     def done_callback(self, obs):
+        self.vehicle_state_history.save_memory()
         pass
         
      

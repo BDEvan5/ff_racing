@@ -1,7 +1,7 @@
 from ff_racing.f1tenth_gym.f110_env import F110Env
 
 from ff_racing.Planners.FrenetFramePlanner import FrenetFramePlanner
-from ff_racing.Planners.LocalMap_TrajOpt import LocalOptimisationPlanner
+from ff_racing.Planners.LocalMapOptimisationPlanner import LocalOptimisationPlanner
 
 import numpy as np
 
