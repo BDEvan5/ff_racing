@@ -16,69 +16,101 @@ def ensure_path_exists(path):
         os.mkdir(path)
 
 
+KAPPA_BOUND = 0.4
+VEHICLE_WIDTH = 0.4
+NUMBER_LOCAL_MAP_POINTS = 10
+ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
+ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
+MU = 0.54 
+V_MAX = 8
+VEHICLE_MASS = 3.4
 
-class OptimiseLocalMap:
-    def __init__(self, pts, ws, counter=0) -> None:
-        self.pts = pts
-        self.ws = ws
-        
+class LocalMap:
+    def __init__(self) -> None:
+        fov2 = 4.7 / 2
+        self.angles = np.linspace(-fov2, fov2, 1080)
+        self.coses = np.cos(self.angles)
+        self.sines = np.sin(self.angles)
+
+        self.track = None
         self.el_lengths = None
         self.psi = None
         self.kappa = None
         self.nvecs = None
-        self.calculate_nvecs()
+
+        self.raceline = None
+        self.psi_r = None
+        self.kappa_r = None
+        self.vs = None
+        self.el_lengths_r = None
+        self.s_raceline = None
+
+    def generate_local_map(self, scan):
+        xs = self.coses[scan < 10] * scan[scan < 10]
+        ys = self.sines[scan < 10] * scan[scan < 10]
+        xs = xs[180:-180]
+        ys = ys[180:-180]
+
+        pts = np.hstack((xs[:, None], ys[:, None]))
+        pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+        mid_idx = np.argmax(pt_distances)
+
+        l1_cs = np.cumsum(pt_distances[:mid_idx+1])
+        l2_cs = np.cumsum(pt_distances[mid_idx:])
         
-        self.distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
-        self.lengths = np.insert(np.cumsum(self.distances), 0, 0)
+        l1_ss = np.linspace(0, l1_cs[-1], NUMBER_LOCAL_MAP_POINTS)
+        l2_ss = np.linspace(0, l2_cs[-1], NUMBER_LOCAL_MAP_POINTS)
+
+        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:mid_idx+1])
+        l2_xs, l2_ys = interp_2d_points(l2_ss, l2_cs, pts[mid_idx+1:])
         
-        self.t_pts = None
-        #! add the self inits here
+        c_xs = (l1_xs + l2_xs[::-1])/2
+        c_ys = (l1_ys + l2_ys[::-1])/2
+        center_line = np.hstack((c_xs[:, None], c_ys[:, None]))
         
-    def calculate_nvecs(self):
-        self.el_lengths = np.linalg.norm(np.diff(self.pts, axis=0), axis=1)
-        self.psi, self.kappa = tph.calc_head_curv_num.calc_head_curv_num(self.pts, self.el_lengths, False)
+        cl_dists = np.linalg.norm(center_line[1:] - center_line[:-1], axis=1)
+        cl_cs = np.cumsum(cl_dists)
+        cl_cs = np.insert(cl_cs, 0, 0)
+        cl_ss = np.linspace(0, cl_cs[-1], NUMBER_LOCAL_MAP_POINTS)
+        cl_xs, cl_ys = interp_2d_points(cl_ss, cl_cs, center_line)
+        
+        center_line = np.hstack((cl_xs[:, None], cl_ys[:, None]))
+        ws = np.ones_like(center_line)
+        self.track = np.concatenate((center_line, ws), axis=1)
+        
+        self.calculate_track_heading_and_nvecs()
+
+    def calculate_track_heading_and_nvecs(self):
+        self.el_lengths = np.linalg.norm(np.diff(self.track[:, :2], axis=0), axis=1)
+        
+        self.psi, self.kappa = tph.calc_head_curv_num.calc_head_curv_num(self.track[:, :2], self.el_lengths, False)
+        
         self.nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(self.psi-np.pi/2)
         
-
     def generate_minimum_curvature_path(self):
-        coeffs_x, coeffs_y, M, normvec_normalized = tph.calc_splines.calc_splines(self.pts, self.el_lengths, self.psi[0], self.psi[-1])
-        self.psi = self.psi - np.pi/2
+        coeffs_x, coeffs_y, M, normvec_normalized = tph.calc_splines.calc_splines(self.track[:, :2], self.el_lengths, self.psi[0], self.psi[-1])
+        self.psi = self.psi - np.pi/2 #! check this, it does not look right
 
-        kappa_bound = 0.4
-        width = 0.3
-        A = M
-        track = np.concatenate((self.pts, self.ws[:, None], self.ws[:, None]), axis=1)
-        #! Todo: adjust the start point to be the vehicle location and adjust the width accordingly
+        # Todo: adjust the start point to be the vehicle location and adjust the width accordingly
         try:
-            alpha, error = tph.opt_min_curv.opt_min_curv(track, self.nvecs, A, kappa_bound, width, print_debug=False, closed=False, psi_s=self.psi[0], psi_e=self.psi[-1], fix_s=True)
+            alpha, error = tph.opt_min_curv.opt_min_curv(self.track, self.nvecs, M, KAPPA_BOUND, VEHICLE_WIDTH, print_debug=False, closed=False, psi_s=self.psi[0], psi_e=self.psi[-1], fix_s=True)
 
-            raceline = self.pts + np.expand_dims(alpha, 1) * self.nvecs
+            raceline = self.track[:, :2] + np.expand_dims(alpha, 1) * self.nvecs
         except:
             print("Error in optimising min curvature path")
-            raceline = self.pts
+            raceline = self.track[:, :2]
         
-        raceline_interp, s_raceline_interp, el_lengths_raceline_interp_cl = normalise_raceline(raceline, 0.2, self.psi)
+        self.raceline, self.s_raceline = normalise_raceline(raceline, 0.2, self.psi)
+        self.el_lengths_r = np.diff(self.s_raceline)
 
-        self.ss = s_raceline_interp
-        self.raceline = raceline_interp
-        self.psi_r, self.kappa_r = tph.calc_head_curv_num.calc_head_curv_num(self.raceline, el_lengths_raceline_interp_cl[:-1], False)
+        self.psi_r, self.kappa_r = tph.calc_head_curv_num.calc_head_curv_num(self.raceline, self.el_lengths_r, False)
 
-    def generate_max_speed_profile(self):
-        ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
-        ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
-        mu = 0.54 * np.ones(len(self.kappa_r)) # this is why my race lines are so slow......
-        v_max = 8
-        m_vehicle = 3.4
-        el_lengths = np.linalg.norm(np.diff(self.raceline, axis=0), axis=1)
+    def generate_max_speed_profile(self, starting_speed=V_MAX):
+        mu = MU * np.ones_like(self.kappa_r) 
         
+        self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, self.el_lengths_r, False, 0, VEHICLE_MASS, ggv=ggv, mu=mu, v_max=V_MAX, v_start=starting_speed)
 
-        self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, el_lengths, False, 0, m_vehicle, ggv=ggv, mu=mu, v_max=v_max, v_start=v_max)
 
-
-        # ts = tph.calc_t_profile.calc_t_profile(self.vs, el_lengths, 0)
-        # print(f"Time: {ts[-1]}")
-
-        # self.acc = tph.calc_ax_profile.calc_ax_profile(self.vs, el_lengths, True)
         
     def plot_local_raceline(self):
         plt.figure(1)
@@ -133,33 +165,9 @@ def normalise_raceline(raceline, step_size, psis):
                                     incl_last_point=False,
                                     stepsize_approx=0.2)
     
-    s_tot_raceline = float(np.sum(spline_lengths_raceline))
-    el_lengths_raceline_interp = np.diff(s_raceline_interp)
-    el_lengths_raceline_interp_cl = np.append(el_lengths_raceline_interp, s_tot_raceline - s_raceline_interp[-1])
-    
-    return raceline_interp, s_tot_raceline, el_lengths_raceline_interp_cl
-
-def run_loop(path="Data/LocalMapPlanner/LocalMapData/"):
-    laps = glob.glob(path + "local_map_*.npy")
-    laps.sort()
-    # print(laps)
-    
-    for i, lap in enumerate(laps):
-        print(f"Processing lap {i}")
-        data = np.load(lap)
-        local_map = LocalMap(data[:, :2], data[:, 2], i)
-        local_map.generate_minimum_curvature_path()
-        # local_map.plot_raceline()
-        
-        local_map.generate_max_speed_profile()
-        local_map.plot_speed_profile()
-
-        if i > 20:
-            break
+    return raceline_interp, s_raceline_interp
 
 
 
 if __name__ == "__main__":
-    run_loop()
-    plt.show()
     pass
