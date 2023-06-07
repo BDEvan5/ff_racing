@@ -154,8 +154,8 @@ class LocalMap:
             long_xs = l1_xs
             long_ys = l1_ys
         else:
-            long_xs = l2_xs[::-1]
-            long_ys = l2_ys[::-1]
+            long_xs = l2_xs
+            long_ys = l2_ys
 
         c_xs = (l1_xs + l2_xs[::-1])/2
         c_ys = (l1_ys + l2_ys[::-1])/2
@@ -202,6 +202,77 @@ class LocalMap:
             plt.plot(xs, ys, 'yellow')
 
         plt.plot(0, 0, 'x', color='black', label="Origin")
+
+        plt.plot(l1[:, 0], l1[:, 1], color='purple')
+        plt.plot(l2[:, 0], l2[:, 1], color='purple')
+
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        plt.savefig(self.local_map_img_path_debug + f"Local_map_debug_{self.counter}.svg")
+
+        plt.pause(0.0001)
+        print("Done")
+
+    def generate_line_local_map(self, scan):
+        self.counter += 1
+        xs = self.coses[scan < 10] * scan[scan < 10]
+        ys = self.sines[scan < 10] * scan[scan < 10]
+        self.xs = xs[180:-180]
+        self.ys = ys[180:-180]
+
+        pts = np.hstack((self.xs[:, None], self.ys[:, None]))
+        pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+        track_width = np.linalg.norm(pts[0] - pts[-1])
+        distance_threshold = 1.8 # distance in m for an exception
+        inds = np.where(pt_distances > distance_threshold)
+        if len(inds[0]) == 0:
+            print("Problem: no inds greater than 1.5 m. Check LiDAR scan.....")
+        arr_inds = np.arange(len(pt_distances))[inds]
+        min_ind = np.min(arr_inds) + 1
+        max_ind = np.max(arr_inds) + 1
+
+        l1_cs = np.cumsum(pt_distances[:min_ind-1])
+        l1_cs = np.insert(l1_cs, 0, 0)
+        l2_cs = np.cumsum(pt_distances[max_ind:])
+        l2_cs = np.insert(l2_cs, 0, 0)
+        
+        l1_ss = np.linspace(0, l1_cs[-1], NUMBER_LOCAL_MAP_POINTS)
+        l2_ss = np.linspace(0, l2_cs[-1], NUMBER_LOCAL_MAP_POINTS)
+
+        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:min_ind])
+        l2_xs, l2_ys = interp_2d_points(l2_ss, l2_cs, pts[max_ind:])
+
+        if l1_cs[-1] > l2_cs[-1]:
+            long_side = np.hstack((l1_xs[:, None], l1_ys[:, None]))
+            w = 1
+        else:
+            long_side = np.hstack((l2_xs[::-1, None], l2_ys[::-1, None]))
+            w = -1
+        
+        el2 = np.linalg.norm(np.diff(long_side[:, :2], axis=0), axis=1)
+        psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, el2, False)
+        side_nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi2-np.pi/2)
+
+        center_line = long_side + side_nvecs * w * track_width / 2
+
+        ws = np.ones_like(center_line)
+        self.track = np.concatenate((center_line, ws), axis=1)
+        self.calculate_track_heading_and_nvecs()
+
+        l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]
+        l2 = self.track[:, :2] - self.nvecs * self.track[:, 3][:, None]
+
+        plt.figure(1)
+        plt.clf()
+        plt.plot(self.xs, self.ys, 'x', color='blue', alpha=0.7)
+
+        plt.plot(l1_xs, l1_ys, '-o', color='green', linewidth=1, markersize=5, alpha=0.6)
+        plt.plot(l2_xs, l2_ys, '-o', color='green', linewidth=1, markersize=5, alpha=0.6)
+        plt.plot(long_side[:, 0], long_side[:, 1], '-o', color='green', linewidth=1, markersize=10, alpha=0.8)
+
+        plt.plot(self.track[:, 0], self.track[:, 1], '-', color='red', label="Center", linewidth=3)
+
+        plt.plot(0, 0, 'x', color='black', label="Origin", markersize=10)
 
         plt.plot(l1[:, 0], l1[:, 1], color='purple')
         plt.plot(l2[:, 0], l2[:, 1], color='purple')
@@ -329,11 +400,12 @@ def run_loop(path="Data/LocalMapPlanner2/"):
         print(f"Processing lap {i}")
         data = np.load(lap)
 
-        local_map.generate_local_map_debug(data)
+        # local_map.generate_local_map_debug(data)
+        local_map.generate_line_local_map(data)
         # local_map.plot_save_local_map()
         
-        if i > 50:
-            break
+        # if i > 50:
+        #     break
 # 
 
 
