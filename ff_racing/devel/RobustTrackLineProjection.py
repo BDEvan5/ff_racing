@@ -96,10 +96,10 @@ class LocalMap:
         self.calculate_track_heading_and_nvecs()
 
     def generate_local_map_debug(self, scan):
+        self.counter += 1
         plt.figure(5)
         plt.clf()
         fig, axs = plt.subplots(4, 2, num=5)
-        self.counter += 1
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
         self.xs = xs[180:-180]
@@ -107,34 +107,45 @@ class LocalMap:
 
         pts = np.hstack((self.xs[:, None], self.ys[:, None]))
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+        distance_threshold = 1.8 # distance in m for an exception
+        inds = np.where(pt_distances > distance_threshold)
+        if len(inds[0]) == 0:
+            print("Problem: no inds greater than 1.5 m. Check LiDAR scan.....")
+        arr_inds = np.arange(len(pt_distances))[inds]
+        min_ind = np.min(arr_inds) + 1
+        max_ind = np.max(arr_inds) + 1
+
         mid_idx = np.argmax(pt_distances)
 
-        l1_cs = np.cumsum(pt_distances[:mid_idx])
-        l2_cs = np.cumsum(pt_distances[mid_idx+1:])
+        # l1_cs = np.cumsum(pt_distances[:mid_idx])
+        # l2_cs = np.cumsum(pt_distances[mid_idx+1:])
+        l1_cs = np.cumsum(pt_distances[:min_ind-1])
+        l1_cs = np.insert(l1_cs, 0, 0)
+        l2_cs = np.cumsum(pt_distances[max_ind:])
         l2_cs = np.insert(l2_cs, 0, 0)
         
         l1_ss = np.linspace(0, l1_cs[-1], NUMBER_LOCAL_MAP_POINTS)
         l2_ss = np.linspace(0, l2_cs[-1], NUMBER_LOCAL_MAP_POINTS)
 
-        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:mid_idx])
-        l2_xs, l2_ys = interp_2d_points(l2_ss, l2_cs, pts[mid_idx+1:])
+        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:min_ind])
+        l2_xs, l2_ys = interp_2d_points(l2_ss, l2_cs, pts[max_ind:])
         
         axs[0, 0].plot(l1_cs, 'o', color='blue')
         axs[0, 0].plot(l1_ss, 'o', color='red')
-        axs[1, 0].plot(l1_cs, pts[:mid_idx, 0], 'o', color='blue')
+        axs[1, 0].plot(l1_cs, pts[:min_ind, 0], 'o', color='blue')
         axs[1, 0].plot(l1_ss, l1_xs, 'x', color='red')
-        axs[2, 0].plot(l1_cs, pts[:mid_idx, 1], 'o', color='blue')
+        axs[2, 0].plot(l1_cs, pts[:min_ind, 1], 'o', color='blue')
         axs[2, 0].plot(l1_ss, l1_ys, 'x', color='red')
-        axs[3, 0].plot(pts[:mid_idx, 0], pts[:mid_idx, 1], '.', color='blue')
+        axs[3, 0].plot(pts[:min_ind, 0], pts[:min_ind, 1], '.', color='blue')
         axs[3, 0].plot(l1_xs, l1_ys, 'x', color='red')   
 
         axs[0, 1].plot(l2_cs, 'o', color='blue')
         axs[0, 1].plot(l2_ss, 'o', color='red')
-        axs[1, 1].plot(l2_cs, pts[mid_idx+1:, 0], 'o', color='blue')
+        axs[1, 1].plot(l2_cs, pts[max_ind:, 0], 'o', color='blue')
         axs[1, 1].plot(l2_ss, l2_xs, 'x', color='red')
-        axs[2, 1].plot(l2_cs, pts[mid_idx+1:, 1], 'o', color='blue')
+        axs[2, 1].plot(l2_cs, pts[max_ind:, 1], 'o', color='blue')
         axs[2, 1].plot(l2_ss, l2_ys, 'x', color='red')
-        axs[3, 1].plot(pts[mid_idx+1:, 0], pts[mid_idx+1:, 1], '.', color='blue')
+        axs[3, 1].plot(pts[max_ind:, 0], pts[max_ind:, 1], '.', color='blue')
         axs[3, 1].plot(l2_xs, l2_ys, 'x', color='red')
 
         plt.pause(0.0001)
@@ -176,11 +187,11 @@ class LocalMap:
 
         plt.figure(1)
         plt.clf()
-        plt.plot(self.xs, self.ys, '.', color='blue', alpha=0.7)
+        plt.plot(self.xs, self.ys, 'x', color='blue', alpha=0.7)
 
-        plt.plot(l1_xs, l1_ys, '-o', color='green', linewidth=2)
-        plt.plot(l2_xs, l2_ys, '-o', color='green', linewidth=2)
-        # plt.plot(long_xs, long_ys, '-o', color='green', linewidth=2)
+        plt.plot(l1_xs, l1_ys, '-o', color='green', linewidth=2, markersize=10, alpha=0.6)
+        plt.plot(l2_xs, l2_ys, '-o', color='green', linewidth=2, markersize=10, alpha=0.6)
+        # plt.plot(long_xs, long_ys, '-o', color='grey', linewidth=1)
 
         plt.plot(self.track[:, 0], self.track[:, 1], '-', color='red', label="Center", linewidth=3)
         plt.plot(c2[:, 0], c2[:, 1], '-', color='orange', label="Center", linewidth=3)
@@ -199,6 +210,8 @@ class LocalMap:
 
         plt.savefig(self.local_map_img_path_debug + f"Local_map_debug_{self.counter}.svg")
 
+        plt.pause(0.0001)
+        print("Done")
 
     def calculate_track_heading_and_nvecs(self):
         self.el_lengths = np.linalg.norm(np.diff(self.track[:, :2], axis=0), axis=1)
@@ -317,7 +330,7 @@ def run_loop(path="Data/LocalMapPlanner2/"):
         data = np.load(lap)
 
         local_map.generate_local_map_debug(data)
-        local_map.plot_save_local_map()
+        # local_map.plot_save_local_map()
         
         if i > 50:
             break
