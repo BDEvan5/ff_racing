@@ -96,6 +96,9 @@ class LocalMap:
         self.calculate_track_heading_and_nvecs()
 
     def generate_local_map_debug(self, scan):
+        plt.figure(5)
+        plt.clf()
+        fig, axs = plt.subplots(4, 2, num=5)
         self.counter += 1
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
@@ -106,15 +109,36 @@ class LocalMap:
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
         mid_idx = np.argmax(pt_distances)
 
-        l1_cs = np.cumsum(pt_distances[:mid_idx+1])
-        l2_cs = np.cumsum(pt_distances[mid_idx:])
+        l1_cs = np.cumsum(pt_distances[:mid_idx])
+        l2_cs = np.cumsum(pt_distances[mid_idx+1:])
+        l2_cs = np.insert(l2_cs, 0, 0)
         
         l1_ss = np.linspace(0, l1_cs[-1], NUMBER_LOCAL_MAP_POINTS)
         l2_ss = np.linspace(0, l2_cs[-1], NUMBER_LOCAL_MAP_POINTS)
 
-        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:mid_idx+1])
+        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:mid_idx])
         l2_xs, l2_ys = interp_2d_points(l2_ss, l2_cs, pts[mid_idx+1:])
         
+        axs[0, 0].plot(l1_cs, 'o', color='blue')
+        axs[0, 0].plot(l1_ss, 'o', color='red')
+        axs[1, 0].plot(l1_cs, pts[:mid_idx, 0], 'o', color='blue')
+        axs[1, 0].plot(l1_ss, l1_xs, 'x', color='red')
+        axs[2, 0].plot(l1_cs, pts[:mid_idx, 1], 'o', color='blue')
+        axs[2, 0].plot(l1_ss, l1_ys, 'x', color='red')
+        axs[3, 0].plot(pts[:mid_idx, 0], pts[:mid_idx, 1], '.', color='blue')
+        axs[3, 0].plot(l1_xs, l1_ys, 'x', color='red')   
+
+        axs[0, 1].plot(l2_cs, 'o', color='blue')
+        axs[0, 1].plot(l2_ss, 'o', color='red')
+        axs[1, 1].plot(l2_cs, pts[mid_idx+1:, 0], 'o', color='blue')
+        axs[1, 1].plot(l2_ss, l2_xs, 'x', color='red')
+        axs[2, 1].plot(l2_cs, pts[mid_idx+1:, 1], 'o', color='blue')
+        axs[2, 1].plot(l2_ss, l2_ys, 'x', color='red')
+        axs[3, 1].plot(pts[mid_idx+1:, 0], pts[mid_idx+1:, 1], '.', color='blue')
+        axs[3, 1].plot(l2_xs, l2_ys, 'x', color='red')
+
+        plt.pause(0.0001)
+
         if l1_cs[-1] > l2_cs[-1]:
             long_xs = l1_xs
             long_ys = l1_ys
