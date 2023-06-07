@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import trajectory_planning_helpers as tph
 import glob
 from matplotlib.collections import LineCollection
+from ff_racing.devel.spline_approximation_unclosed import spline_approximation_unclosed
+from scipy.interpolate import splrep, BSpline
+from scipy import interpolate
     
 def interp_2d_points(ss, xp, points):
     xs = np.interp(ss, xp, points[:, 0])
@@ -18,12 +21,25 @@ def ensure_path_exists(path):
 
 KAPPA_BOUND = 0.4
 VEHICLE_WIDTH = 0.4
-NUMBER_LOCAL_MAP_POINTS = 10
+NUMBER_LOCAL_MAP_POINTS = 20
+POINT_SEP_DISTANCE = 1.2
 ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
 ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
 MU = 0.54 
 V_MAX = 8
 VEHICLE_MASS = 3.4
+
+def interpolate_track(points, n_points, s=10):
+    el = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    cs = np.insert(np.cumsum(el), 0, 0)
+    ss = np.linspace(0, cs[-1], n_points)
+    tck_x = splrep(cs, points[:, 0], s=s)
+    tck_y = splrep(cs, points[:, 1], s=s)
+    xs = BSpline(*tck_x)(ss) # get unispaced points
+    ys = BSpline(*tck_y)(ss)
+    new_points = np.hstack((xs[:, None], ys[:, None]))
+
+    return new_points
 
 class LocalMap:
     def __init__(self, path) -> None:
@@ -222,7 +238,7 @@ class LocalMap:
 
         pts = np.hstack((self.xs[:, None], self.ys[:, None]))
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
-        track_width = np.linalg.norm(pts[0] - pts[-1])
+        track_width = np.linalg.norm(pts[0] - pts[-1]) * 0.95
         distance_threshold = 1.8 # distance in m for an exception
         inds = np.where(pt_distances > distance_threshold)
         if len(inds[0]) == 0:
@@ -232,32 +248,39 @@ class LocalMap:
         max_ind = np.max(arr_inds) + 1
 
         l1_cs = np.cumsum(pt_distances[:min_ind-1])
-        l1_cs = np.insert(l1_cs, 0, 0)
         l2_cs = np.cumsum(pt_distances[max_ind:])
-        l2_cs = np.insert(l2_cs, 0, 0)
-        
-        l1_ss = np.linspace(0, l1_cs[-1], NUMBER_LOCAL_MAP_POINTS)
-        l2_ss = np.linspace(0, l2_cs[-1], NUMBER_LOCAL_MAP_POINTS)
-
-        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:min_ind])
-        l2_xs, l2_ys = interp_2d_points(l2_ss, l2_cs, pts[max_ind:])
 
         if l1_cs[-1] > l2_cs[-1]:
-            long_side = np.hstack((l1_xs[:, None], l1_ys[:, None]))
+            long_pts = pts[:min_ind]
+            line_length = l1_cs[-1]
             w = 1
         else:
-            long_side = np.hstack((l2_xs[::-1, None], l2_ys[::-1, None]))
+            long_pts = pts[max_ind:]
+            long_pts = long_pts[::-1]
+            line_length = l2_cs[-1]
             w = -1
-        
-        el2 = np.linalg.norm(np.diff(long_side[:, :2], axis=0), axis=1)
-        psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, el2, False)
+            
+        n_pts = int(line_length / POINT_SEP_DISTANCE)
+        long_side = interpolate_track(long_pts, n_pts*5, 2)
+        long_side = interpolate_track(long_side, n_pts, 2)
+
+        side_el = np.linalg.norm(np.diff(long_side[:, :2], axis=0), axis=1)
+        psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, side_el, False)
         side_nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi2-np.pi/2)
 
         center_line = long_side + side_nvecs * w * track_width / 2
+        center_line = interpolate_track(center_line, n_pts, 2)
 
-        ws = np.ones_like(center_line)
+        ws = np.ones_like(center_line) * track_width / 2
         self.track = np.concatenate((center_line, ws), axis=1)
         self.calculate_track_heading_and_nvecs()
+
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, 4)
+        while crossing:
+            self.track[:, 2:] *= 0.9
+            self.calculate_track_heading_and_nvecs()
+            crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, 4)
+            print("Normals crossed --> New Crossing: ", crossing)
 
         l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]
         l2 = self.track[:, :2] - self.nvecs * self.track[:, 3][:, None]
@@ -266,23 +289,27 @@ class LocalMap:
         plt.clf()
         plt.plot(self.xs, self.ys, 'x', color='blue', alpha=0.7)
 
-        plt.plot(l1_xs, l1_ys, '-o', color='green', linewidth=1, markersize=5, alpha=0.6)
-        plt.plot(l2_xs, l2_ys, '-o', color='green', linewidth=1, markersize=5, alpha=0.6)
         plt.plot(long_side[:, 0], long_side[:, 1], '-o', color='green', linewidth=1, markersize=10, alpha=0.8)
 
-        plt.plot(self.track[:, 0], self.track[:, 1], '-', color='red', label="Center", linewidth=3)
+        plt.plot(self.track[:, 0], self.track[:, 1], '-o', color='red', label="Center", linewidth=3)
 
         plt.plot(0, 0, 'x', color='black', label="Origin", markersize=10)
 
         plt.plot(l1[:, 0], l1[:, 1], color='purple')
         plt.plot(l2[:, 0], l2[:, 1], color='purple')
 
+        for i in range(len(self.track)):
+            xs = [l1[i, 0], l2[i, 0]]
+            ys = [l1[i, 1], l2[i, 1]]
+            plt.plot(xs, ys, 'yellow')
+
         plt.gca().set_aspect('equal', adjustable='box')
 
         plt.savefig(self.local_map_img_path_debug + f"Local_map_debug_{self.counter}.svg")
 
-        plt.pause(0.0001)
-        print("Done")
+
+        # plt.pause(0.0001)
+
 
     def calculate_track_heading_and_nvecs(self):
         self.el_lengths = np.linalg.norm(np.diff(self.track[:, :2], axis=0), axis=1)
