@@ -37,6 +37,7 @@ class LocalOptimisationPlanner:
                 
         self.counter = 0
         self.local_map = LocalMap(self.path)
+        self.local_position = np.array([0, 0])
         
     def plan(self, obs):
         scan = obs['scans'][0]
@@ -50,34 +51,38 @@ class LocalOptimisationPlanner:
         # self.local_map.plot_save_raceline()
 
         plt.pause(0.0001)
-        action = self.local_map_pure_pursuit()
+        # action = self.pure_pursuit_racing_line()
+        action = self.pure_pursuit_center_line()
 
         self.vehicle_state_history.add_memory_entry(obs, action)
 
         self.counter += 1
         return action
         
-    def local_map_pure_pursuit(self):
-        assert self.local_map is not None, "No local map has been created"
-        
-        position = np.array([0, 0])
-        current_progress = np.linalg.norm(position - self.local_map.track[0, 0:2])
+    def pure_pursuit_center_line(self):
+        current_progress = np.linalg.norm(self.local_map.track[0, 0:2])
         lookahead = LOOKAHEAD_DISTANCE + current_progress
         lookahead = min(lookahead, self.local_map.s_track[-1]) 
         lookahead_point = interp_2d_points(lookahead, self.local_map.s_track, self.local_map.track[:, 0:2])
-        # lookahead = min(lookahead, self.local_map.s_raceline[-1]) 
-        # lookahead_point = interp_2d_points(lookahead, self.local_map.s_raceline, self.local_map.raceline)
-        
-        # self.local_map.plot_local_raceline()
-        # plt.plot(lookahead_point[0], lookahead_point[1], 'o', color='green', label="Lookahead")
-        
-        theta = 0 #! TODO: get calculate theta relative to center line.
-        steering_angle = get_steering_actuation(theta, lookahead_point, position, LOOKAHEAD_DISTANCE, WHEELBASE)
-        steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
-        
-        speed = 3
 
+        steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
+        steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
+        speed = 3
+        
         return np.array([steering_angle, speed])
+
+    def pure_pursuit_racing_line(self):
+        current_progress = np.linalg.norm(self.local_map.raceline)
+        lookahead = LOOKAHEAD_DISTANCE + current_progress
+        lookahead = min(lookahead, self.local_map.s_raceline[-1]) 
+        lookahead_point = interp_2d_points(lookahead, self.local_map.s_raceline, self.local_map.raceline)
+
+        steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
+        steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
+        speed = 3
+        
+        return np.array([steering_angle, speed])
+    
         
     def done_callback(self, obs):
         self.vehicle_state_history.save_history()
@@ -88,6 +93,15 @@ class LocalOptimisationPlanner:
 # @njit(fastmath=False, cache=True)
 def get_steering_actuation(pose_theta, lookahead_point, position, lookahead_distance, wheelbase):
     waypoint_y = np.dot(np.array([np.sin(-pose_theta), np.cos(-pose_theta)]), lookahead_point[0:2]-position)
+    if np.abs(waypoint_y) < 1e-6:
+        return 0.0
+    radius = 1/(2.0*waypoint_y/lookahead_distance**2)
+    steering_angle = np.arctan(wheelbase/radius)
+    return steering_angle
+
+@njit(fastmath=False, cache=True)
+def get_local_steering_actuation(lookahead_point, lookahead_distance, wheelbase):
+    waypoint_y = lookahead_point[1]
     if np.abs(waypoint_y) < 1e-6:
         return 0.0
     radius = 1/(2.0*waypoint_y/lookahead_distance**2)
