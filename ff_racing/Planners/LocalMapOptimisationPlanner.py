@@ -49,6 +49,7 @@ class LocalOptimisationPlanner:
         # self.local_map.generate_max_speed_profile()
         # self.local_map.plot_save_raceline()
 
+        plt.pause(0.0001)
         action = self.local_map_pure_pursuit()
 
         self.vehicle_state_history.add_memory_entry(obs, action)
@@ -60,7 +61,7 @@ class LocalOptimisationPlanner:
         assert self.local_map is not None, "No local map has been created"
         
         position = np.array([0, 0])
-        current_progress = np.linalg.norm(position - self.local_map.raceline[0])
+        current_progress = np.linalg.norm(position - self.local_map.track[0, 0:2])
         lookahead = LOOKAHEAD_DISTANCE + current_progress
         lookahead = min(lookahead, self.local_map.s_track[-1]) 
         lookahead_point = interp_2d_points(lookahead, self.local_map.s_track, self.local_map.track[:, 0:2])

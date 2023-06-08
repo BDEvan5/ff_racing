@@ -272,8 +272,7 @@ class LocalMap:
             w = -1
             
         n_pts = int(line_length / POINT_SEP_DISTANCE)
-        long_side = interpolate_track(long_pts, n_pts*2, 1)
-        # long_side = interpolate_track(long_side, n_pts, 2)
+        long_side = interpolate_track(long_pts, n_pts*2, 0)
 
         side_el = np.linalg.norm(np.diff(long_side[:, :2], axis=0), axis=1)
         psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, side_el, False)
@@ -320,12 +319,14 @@ class LocalMap:
             ys = [l1[i, 1], l2[i, 1]]
             plt.plot(xs, ys, 'yellow')
 
+        plt.title(f"Track {self.counter}")
         plt.gca().set_aspect('equal', adjustable='box')
 
         plt.savefig(self.local_map_img_path_debug + f"Local_map_debug_{self.counter}.svg")
 
 
         plt.pause(0.0001)
+        # plt.pause(0.8)
 
 
     def calculate_track_heading_and_nvecs(self):

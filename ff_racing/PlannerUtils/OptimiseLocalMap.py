@@ -156,8 +156,7 @@ class LocalMap:
             w = -1
             
         n_pts = int(line_length / POINT_SEP_DISTANCE)
-        long_side = interpolate_track(long_pts, n_pts*2, 1)
-        # long_side = interpolate_track(long_side, n_pts, 2)
+        long_side = interpolate_track(long_pts, n_pts*2, 0)
 
         side_el = np.linalg.norm(np.diff(long_side[:, :2], axis=0), axis=1)
         psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, side_el, False)
@@ -181,7 +180,7 @@ class LocalMap:
             print(f"ks: {self.kappa}")
             self.calculate_track_heading_and_nvecs()
             crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, min(5, len(self.track)//2))
-            print(f"Normals crossed --> New Crossing: {crossing} --> width: {self.track[0, 2]}")
+            print(f"{i}:: Normals crossed --> New Crossing: {crossing} --> width: {self.track[0, 2:]}")
 
 
     def calculate_track_heading_and_nvecs(self):
@@ -217,12 +216,6 @@ class LocalMap:
         
         self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, self.el_lengths_r, False, 0, VEHICLE_MASS, ggv=ggv, mu=mu, v_max=V_MAX, v_start=starting_speed)
 
-    # def calculate_lookahead_points(self, lookahead_distance):
-    #     current_location = np.array([0, 0])
-    #     current_heading = 0
-
-
-
 
     def plot_save_local_map(self):
         l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]
@@ -230,17 +223,17 @@ class LocalMap:
 
         plt.figure(1)
         plt.clf()
-        plt.plot(self.xs, self.ys, '.', color='blue', alpha=0.7)
-        plt.plot(self.track[:, 0], self.track[:, 1], '-', color='red', label="Center", linewidth=3)
-        plt.plot(0, 0, 'x', color='black', label="Origin")
+        plt.plot(self.xs, self.ys, '.', color='#0057e7', alpha=0.7)
+        plt.plot(self.track[:, 0], self.track[:, 1], '-', color='#E74C3C', label="Center", linewidth=3)
+        plt.plot(0, 0, 'x', color='black', markersize=10)
 
-        plt.plot(l1[:, 0], l1[:, 1], color='green')
-        plt.plot(l2[:, 0], l2[:, 1], color='green')
+        plt.plot(l1[:, 0], l1[:, 1], color='#ffa700')
+        plt.plot(l2[:, 0], l2[:, 1], color='#ffa700')
 
         for i in range(len(self.track)):
             xs = [l1[i, 0], l2[i, 0]]
             ys = [l1[i, 1], l2[i, 1]]
-            plt.plot(xs, ys, 'orange')
+            plt.plot(xs, ys, '#ffa700')
 
         plt.title("Local Map")
 
