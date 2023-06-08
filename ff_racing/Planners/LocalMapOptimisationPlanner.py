@@ -41,11 +41,11 @@ class LocalOptimisationPlanner:
     def plan(self, obs):
         scan = obs['scans'][0]
         
-        np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
+        np.save(self.path + "ScanData/" + f"ScanData_{self.counter}.npy", obs['scans'][0])
         # self.local_map.generate_local_map(scan)
         self.local_map.generate_line_local_map(scan)
         self.local_map.plot_save_local_map()
-        self.local_map.generate_minimum_curvature_path()
+        # self.local_map.generate_minimum_curvature_path()
         # self.local_map.generate_max_speed_profile()
         # self.local_map.plot_save_raceline()
 
@@ -59,13 +59,18 @@ class LocalOptimisationPlanner:
     def local_map_pure_pursuit(self):
         assert self.local_map is not None, "No local map has been created"
         
-        lookahead = min(LOOKAHEAD_DISTANCE, self.local_map.s_raceline[-1]) 
-        lookahead_point = interp_2d_points(lookahead, self.local_map.s_raceline, self.local_map.raceline)
+        position = np.array([0, 0])
+        current_progress = np.linalg.norm(position - self.local_map.raceline[0])
+        lookahead = LOOKAHEAD_DISTANCE + current_progress
+        lookahead = min(lookahead, self.local_map.s_track[-1]) 
+        lookahead_point = interp_2d_points(lookahead, self.local_map.s_track, self.local_map.track[:, 0:2])
+        # lookahead = min(lookahead, self.local_map.s_raceline[-1]) 
+        # lookahead_point = interp_2d_points(lookahead, self.local_map.s_raceline, self.local_map.raceline)
+        
         # self.local_map.plot_local_raceline()
         # plt.plot(lookahead_point[0], lookahead_point[1], 'o', color='green', label="Lookahead")
         
         theta = 0 #! TODO: get calculate theta relative to center line.
-        position = np.array([0, 0])
         steering_angle = get_steering_actuation(theta, lookahead_point, position, LOOKAHEAD_DISTANCE, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
         

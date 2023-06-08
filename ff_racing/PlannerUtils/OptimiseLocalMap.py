@@ -56,6 +56,7 @@ class LocalMap:
         self.psi = None
         self.kappa = None
         self.nvecs = None
+        self.s_track = None
 
         self.raceline = None
         self.psi_r = None
@@ -117,11 +118,10 @@ class LocalMap:
         ys = self.sines[scan < 10] * scan[scan < 10]
         self.xs = xs[180:-180]
         self.ys = ys[180:-180]
-        # self.xs = xs
-        # self.ys = ys
 
         pts = np.hstack((self.xs[:, None], self.ys[:, None]))
-        track_width = np.linalg.norm(pts[0] - pts[-1]) * 0.95
+        # track_width = np.linalg.norm(pts[0] - pts[-1]) * 0.95
+        track_width = 1.8 # use fixed width
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
         inds = np.where(pt_distances > DISTNACE_THRESHOLD)
         if len(inds[0]) == 0:
@@ -156,15 +156,15 @@ class LocalMap:
             w = -1
             
         n_pts = int(line_length / POINT_SEP_DISTANCE)
-        long_side = interpolate_track(long_pts, n_pts*5, 2)
-        long_side = interpolate_track(long_side, n_pts, 2)
+        long_side = interpolate_track(long_pts, n_pts*2, 1)
+        # long_side = interpolate_track(long_side, n_pts, 2)
 
         side_el = np.linalg.norm(np.diff(long_side[:, :2], axis=0), axis=1)
         psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, side_el, False)
         side_nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi2-np.pi/2)
 
         center_line = long_side + side_nvecs * w * track_width / 2
-        center_line = interpolate_track(center_line, n_pts, 2)
+        center_line = interpolate_track(center_line, n_pts, 1)
 
         ws = np.ones_like(center_line) * track_width / 2
         self.track = np.concatenate((center_line, ws), axis=1)
@@ -190,6 +190,9 @@ class LocalMap:
         self.psi, self.kappa = tph.calc_head_curv_num.calc_head_curv_num(self.track[:, :2], self.el_lengths, False)
         
         self.nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(self.psi-np.pi/2)
+
+        self.s_track = np.cumsum(self.el_lengths)
+        self.s_track = np.insert(self.s_track, 0, 0)
         
     def generate_minimum_curvature_path(self):
         coeffs_x, coeffs_y, M, normvec_normalized = tph.calc_splines.calc_splines(self.track[:, :2], self.el_lengths, self.psi[0], self.psi[-1])
@@ -213,6 +216,13 @@ class LocalMap:
         mu = MU * np.ones_like(self.kappa_r) 
         
         self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, self.el_lengths_r, False, 0, VEHICLE_MASS, ggv=ggv, mu=mu, v_max=V_MAX, v_start=starting_speed)
+
+    # def calculate_lookahead_points(self, lookahead_distance):
+    #     current_location = np.array([0, 0])
+    #     current_heading = 0
+
+
+
 
     def plot_save_local_map(self):
         l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]

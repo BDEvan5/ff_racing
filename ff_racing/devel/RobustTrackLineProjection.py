@@ -17,7 +17,7 @@ def ensure_path_exists(path):
     if not os.path.exists(path): 
         os.mkdir(path)
 
-
+DISTNACE_THRESHOLD = 1.6
 KAPPA_BOUND = 0.4
 VEHICLE_WIDTH = 0.4
 NUMBER_LOCAL_MAP_POINTS = 20
@@ -232,18 +232,28 @@ class LocalMap:
         self.counter += 1
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
-        # self.xs = xs[180:-180]
-        # self.ys = ys[180:-180]
-        self.xs, self.ys = xs, ys
+        self.xs = xs[180:-180]
+        self.ys = ys[180:-180]
 
-        # pts = np.hstack((self.xs[:, None], self.ys[:, None]))
-        pts = np.hstack((xs[:, None], ys[:, None]))
+        pts = np.hstack((self.xs[:, None], self.ys[:, None]))
+        # track_width = np.linalg.norm(pts[0] - pts[-1]) * 0.95
+        track_width = 1.8 # use fixed width
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
-        track_width = np.linalg.norm(pts[0] - pts[-1]) * 0.95
-        distance_threshold = 1.8 # distance in m for an exception
-        inds = np.where(pt_distances > distance_threshold)
+        inds = np.where(pt_distances > DISTNACE_THRESHOLD)
         if len(inds[0]) == 0:
-            print("Problem: no inds greater than 1.5 m. Check LiDAR scan.....")
+            print("Problem using sliced scan: using full scan")
+            self.xs, self.ys = xs, ys # do not exclude any points
+            pts = np.hstack((self.xs[:, None], self.ys[:, None]))
+            pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+            inds = np.where(pt_distances > DISTNACE_THRESHOLD)
+            if len(inds[0]) == 0:
+                print("Problem with full scan... skipping")
+
+                plt.figure(1)
+                plt.plot(pts[:, 0], pts[:, 1], 'x-')
+                plt.plot(xs, ys, 'x-')
+                plt.show()
+
         arr_inds = np.arange(len(pt_distances))[inds]
         min_ind = np.min(arr_inds) + 1
         max_ind = np.max(arr_inds) + 1
@@ -262,26 +272,32 @@ class LocalMap:
             w = -1
             
         n_pts = int(line_length / POINT_SEP_DISTANCE)
-        long_side = interpolate_track(long_pts, n_pts*5, 2)
-        long_side = interpolate_track(long_side, n_pts, 2)
+        long_side = interpolate_track(long_pts, n_pts*2, 1)
+        # long_side = interpolate_track(long_side, n_pts, 2)
 
         side_el = np.linalg.norm(np.diff(long_side[:, :2], axis=0), axis=1)
         psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, side_el, False)
         side_nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi2-np.pi/2)
 
         center_line = long_side + side_nvecs * w * track_width / 2
-        center_line = interpolate_track(center_line, n_pts, 2)
+        center_line = interpolate_track(center_line, n_pts, 1)
 
         ws = np.ones_like(center_line) * track_width / 2
         self.track = np.concatenate((center_line, ws), axis=1)
         self.calculate_track_heading_and_nvecs()
 
-        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, 4)
-        while crossing:
-            self.track[:, 2:] *= 0.9
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, min(5, len(self.track)//2 -1))
+        i = 0
+        while crossing and i < 20:
+            i += 1
+            if np.mean(self.kappa) > 0:
+                self.track[:, 2] *= 0.9
+            else:
+                self.track[:, 3] *= 0.9
+            print(f"ks: {self.kappa}")
             self.calculate_track_heading_and_nvecs()
-            crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, 4)
-            print("Normals crossed --> New Crossing: ", crossing)
+            crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, min(5, len(self.track)//2))
+            print(f"Normals crossed --> New Crossing: {crossing} --> width: {self.track[0, 2]}")
 
         l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]
         l2 = self.track[:, :2] - self.nvecs * self.track[:, 3][:, None]
@@ -309,7 +325,7 @@ class LocalMap:
         plt.savefig(self.local_map_img_path_debug + f"Local_map_debug_{self.counter}.svg")
 
 
-        # plt.pause(0.0001)
+        plt.pause(0.0001)
 
 
     def calculate_track_heading_and_nvecs(self):
@@ -420,24 +436,31 @@ def normalise_raceline(raceline, step_size, psis):
 
 
 def run_loop(path="Data/LocalMapPlanner2/"):
-    laps = glob.glob(path + "ScanData/LocalMapPlanner2_*.npy")
-    laps.sort()
+    laps_load = glob.glob(path + "ScanData/Local*.npy")
+    lap_inds = []
+    for i, lap in enumerate(laps_load):
+        number = int(lap.split("_")[-1].split(".")[0])
+        lap_inds.append(number)
 
     local_map = LocalMap(path)
-    for i, lap in enumerate(laps):
+    for i in range(1000):
         print(f"Processing lap {i}")
-        data = np.load(lap)
+        try:
+            data = np.load(path + f"ScanData/ScanData_{i}.npy")
+        except:
+            print(f"No more data: {i}")
+            break
 
         # local_map.generate_local_map_debug(data)
         local_map.generate_line_local_map(data)
-        # local_map.plot_save_local_map()
+        local_map.plot_save_local_map()
         
         # if i > 50:
         #     break
 # 
-
+    plt.close('all')
 
 if __name__ == "__main__":
-    run_loop()
+    run_loop("Data/LocalMap_lineproj_AUT/")
     plt.show()
     pass
