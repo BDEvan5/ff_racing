@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import trajectory_planning_helpers as tph
 import glob
 from matplotlib.collections import LineCollection
+from scipy.interpolate import splrep, BSpline
     
 def interp_2d_points(ss, xp, points):
     xs = np.interp(ss, xp, points[:, 0])
@@ -16,6 +17,21 @@ def ensure_path_exists(path):
         os.mkdir(path)
 
 
+def interpolate_track(points, n_points, s=10):
+    el = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    cs = np.insert(np.cumsum(el), 0, 0)
+    ss = np.linspace(0, cs[-1], n_points)
+    tck_x = splrep(cs, points[:, 0], s=s)
+    tck_y = splrep(cs, points[:, 1], s=s)
+    xs = BSpline(*tck_x)(ss) # get unispaced points
+    ys = BSpline(*tck_y)(ss)
+    new_points = np.hstack((xs[:, None], ys[:, None]))
+
+    return new_points
+
+
+DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
+POINT_SEP_DISTANCE = 1.2
 KAPPA_BOUND = 0.4
 VEHICLE_WIDTH = 0.4
 NUMBER_LOCAL_MAP_POINTS = 10
@@ -92,6 +108,73 @@ class LocalMap:
         self.track = np.concatenate((center_line, ws), axis=1)
         
         self.calculate_track_heading_and_nvecs()
+
+    def generate_line_local_map(self, scan):
+        self.counter += 1
+        xs = self.coses[scan < 10] * scan[scan < 10]
+        ys = self.sines[scan < 10] * scan[scan < 10]
+        self.xs = xs[180:-180]
+        self.ys = ys[180:-180]
+        # self.xs = xs
+        # self.ys = ys
+
+        pts = np.hstack((self.xs[:, None], self.ys[:, None]))
+        track_width = np.linalg.norm(pts[0] - pts[-1]) * 0.95
+        pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+        inds = np.where(pt_distances > DISTNACE_THRESHOLD)
+        if len(inds[0]) == 0:
+            print("Problem using sliced scan: using full scan")
+            self.xs, self.ys = xs, ys # do not exclude any points
+            pts = np.hstack((self.xs[:, None], self.ys[:, None]))
+            pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+            inds = np.where(pt_distances > DISTNACE_THRESHOLD)
+            if len(inds[0]) == 0:
+                print("Problem with full scan... skipping")
+
+                plt.figure(1)
+                plt.plot(pts[:, 0], pts[:, 1], 'x-')
+                plt.plot(xs, ys, 'x-')
+                plt.show()
+
+        arr_inds = np.arange(len(pt_distances))[inds]
+        min_ind = np.min(arr_inds) + 1
+        max_ind = np.max(arr_inds) + 1
+
+        l1_cs = np.cumsum(pt_distances[:min_ind-1])
+        l2_cs = np.cumsum(pt_distances[max_ind:])
+
+        if l1_cs[-1] > l2_cs[-1]:
+            long_pts = pts[:min_ind]
+            line_length = l1_cs[-1]
+            w = 1
+        else:
+            long_pts = pts[max_ind:]
+            long_pts = long_pts[::-1]
+            line_length = l2_cs[-1]
+            w = -1
+            
+        n_pts = int(line_length / POINT_SEP_DISTANCE)
+        long_side = interpolate_track(long_pts, n_pts*5, 2)
+        long_side = interpolate_track(long_side, n_pts, 2)
+
+        side_el = np.linalg.norm(np.diff(long_side[:, :2], axis=0), axis=1)
+        psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, side_el, False)
+        side_nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi2-np.pi/2)
+
+        center_line = long_side + side_nvecs * w * track_width / 2
+        center_line = interpolate_track(center_line, n_pts, 2)
+
+        ws = np.ones_like(center_line) * track_width / 2
+        self.track = np.concatenate((center_line, ws), axis=1)
+        self.calculate_track_heading_and_nvecs()
+
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, min(5, len(self.track)//2 -1))
+        while crossing:
+            self.track[:, 2:] *= 0.9
+            self.calculate_track_heading_and_nvecs()
+            crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, min(5, len(self.track)//2))
+            print(f"Normals crossed --> New Crossing: {crossing} --> width: {self.track[0, 2]}")
+
 
     def calculate_track_heading_and_nvecs(self):
         self.el_lengths = np.linalg.norm(np.diff(self.track[:, :2], axis=0), axis=1)

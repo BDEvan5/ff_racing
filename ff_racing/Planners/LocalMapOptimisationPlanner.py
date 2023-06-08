@@ -42,11 +42,12 @@ class LocalOptimisationPlanner:
         scan = obs['scans'][0]
         
         np.save(self.path + "ScanData/" + f"{self.name}_{self.counter}.npy", obs['scans'][0])
-        self.local_map.generate_local_map(scan)
+        # self.local_map.generate_local_map(scan)
+        self.local_map.generate_line_local_map(scan)
         self.local_map.plot_save_local_map()
         self.local_map.generate_minimum_curvature_path()
         # self.local_map.generate_max_speed_profile()
-        self.local_map.plot_save_raceline()
+        # self.local_map.plot_save_raceline()
 
         action = self.local_map_pure_pursuit()
 

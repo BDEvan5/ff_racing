@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import trajectory_planning_helpers as tph
 import glob
 from matplotlib.collections import LineCollection
-from ff_racing.devel.spline_approximation_unclosed import spline_approximation_unclosed
 from scipy.interpolate import splrep, BSpline
 from scipy import interpolate
     
@@ -233,10 +232,12 @@ class LocalMap:
         self.counter += 1
         xs = self.coses[scan < 10] * scan[scan < 10]
         ys = self.sines[scan < 10] * scan[scan < 10]
-        self.xs = xs[180:-180]
-        self.ys = ys[180:-180]
+        # self.xs = xs[180:-180]
+        # self.ys = ys[180:-180]
+        self.xs, self.ys = xs, ys
 
-        pts = np.hstack((self.xs[:, None], self.ys[:, None]))
+        # pts = np.hstack((self.xs[:, None], self.ys[:, None]))
+        pts = np.hstack((xs[:, None], ys[:, None]))
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
         track_width = np.linalg.norm(pts[0] - pts[-1]) * 0.95
         distance_threshold = 1.8 # distance in m for an exception
