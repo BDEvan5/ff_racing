@@ -5,7 +5,9 @@ import trajectory_planning_helpers as tph
 import glob
 from matplotlib.collections import LineCollection
 from scipy.interpolate import splrep, BSpline
-    
+np.set_printoptions(precision=4)
+
+
 def interp_2d_points(ss, xp, points):
     xs = np.interp(ss, xp, points[:, 0])
     ys = np.interp(ss, xp, points[:, 1])
@@ -169,8 +171,14 @@ class LocalMap:
         self.calculate_track_heading_and_nvecs()
 
         crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, min(5, len(self.track)//2 -1))
-        while crossing:
-            self.track[:, 2:] *= 0.9
+        i = 0
+        while crossing and i < 20:
+            i += 1
+            if np.mean(self.kappa) > 0:
+                self.track[:, 2] *= 0.9
+            else:
+                self.track[:, 3] *= 0.9
+            print(f"ks: {self.kappa}")
             self.calculate_track_heading_and_nvecs()
             crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, min(5, len(self.track)//2))
             print(f"Normals crossed --> New Crossing: {crossing} --> width: {self.track[0, 2]}")

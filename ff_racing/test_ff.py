@@ -29,13 +29,13 @@ def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
         
 
 def test_frenet_planner():
-    # map_name = "aut" # "aut", "esp", "gbr", "mco"
-    map_name = "mco"
+    map_name = "aut" # "aut", "esp", "gbr", "mco"
+    # map_name = "mco"
     n_test_laps = 1
     
     env = F110Env(map=map_name, num_agents=1)
     
-    agent_name = "LocalMap_lineproj"
+    agent_name = f"LocalMap_lineproj_{map_name.upper()}"
     # planner = FrenetFramePlanner(agent_name, f"Data/{agent_name}/")
     # agent_name = "LocalMap_TrajOpt"
     planner = LocalOptimisationPlanner(agent_name, f"Data/{agent_name}/")

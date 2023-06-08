@@ -74,7 +74,7 @@ class LocalOptimisationPlanner:
         return np.array([steering_angle, speed])
         
     def done_callback(self, obs):
-        self.vehicle_state_history.save_memory()
+        self.vehicle_state_history.save_history()
         pass
         
      
