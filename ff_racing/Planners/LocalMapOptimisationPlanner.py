@@ -4,11 +4,10 @@ from ff_racing.PlannerUtils.VehicleStateHistory import VehicleStateHistory
 from ff_racing.PlannerUtils.TrackLine import TrackLine
 from numba import njit  
 
-import cv2 as cv
-from PIL import Image
-import os
+from ff_racing.PlannerUtils.local_map_utils import *
 from ff_racing.PlannerUtils.LocalMap import LocalMap
 from ff_racing.PlannerUtils.OptimiseLocalMap import LocalMap
+np.set_printoptions(precision=4)
 
 
 LOOKAHEAD_DISTANCE = 1.1
@@ -16,15 +15,6 @@ WHEELBASE = 0.33
 MAX_STEER = 0.4
 MAX_SPEED = 8
 
-    
-def interp_2d_points(ss, xp, points):
-    xs = np.interp(ss, xp, points[:, 0])
-    ys = np.interp(ss, xp, points[:, 1])
-    
-    return xs, ys
-
-def ensure_path_exists(path):
-    if not os.path.exists(path): os.mkdir(path)
 
 class LocalOptimisationPlanner:
     def __init__(self, name, path):
@@ -77,12 +67,11 @@ class LocalOptimisationPlanner:
         current_progress = np.linalg.norm(self.local_map.raceline[0, :])
         lookahead = LOOKAHEAD_DISTANCE + current_progress
         lookahead = min(lookahead, self.local_map.s_raceline[-1]) 
-        print(f"Lookahead: {lookahead}")
+        # print(f"Lookahead: {lookahead:.2f}")
         lookahead_point = interp_2d_points(lookahead, self.local_map.s_raceline, self.local_map.raceline)
 
         steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
-        # speed = 3
         speed = np.interp(current_progress, self.local_map.s_raceline, self.local_map.vs) * 0.8
         max_turning_speed = calculate_speed(steering_angle)
         speed = min(speed, max_turning_speed)
