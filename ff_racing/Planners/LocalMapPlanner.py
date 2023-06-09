@@ -30,6 +30,8 @@ class LocalMapPlanner:
         self.local_map_generator = LocalMapGenerator(self.path)
         self.local_map = None
         self.local_raceline = LocalRaceline(self.path)
+
+        self.track_line = TrackLine(map_name, False, False)
         
     def plan(self, obs):
         self.local_map = self.local_map_generator.generate_line_local_map(obs['scans'][0])
@@ -72,9 +74,12 @@ class LocalMapPlanner:
         return np.array([steering_angle, speed]), lookahead_point
     
         
-    def done_callback(self, obs):
+    def done_callback(self, final_obs):
         self.vehicle_state_history.save_history()
-        pass
+        
+        progress = self.track_line.calculate_progress_percent([final_obs['poses_x'][0], final_obs['poses_y'][0]]) * 100
+        
+        print(f"Test lap complete --> Time: {final_obs['lap_times'][0]:.2f}, Colission: {bool(final_obs['collisions'][0])}, Lap p: {progress:.1f}%")
         
      
 @njit(cache=True)

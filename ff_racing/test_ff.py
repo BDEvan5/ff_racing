@@ -2,6 +2,7 @@ from ff_racing.f1tenth_gym.f110_env import F110Env
 
 from ff_racing.Planners.FrenetFramePlanner import FrenetFramePlanner
 from ff_racing.Planners.LocalMapPlanner import LocalMapPlanner
+from ff_racing.planner_utils.utils import ensure_path_exists
 
 import numpy as np
 
@@ -60,14 +61,17 @@ def test_frenet_planner():
 def test_lm_planner_all():
     map_list = ["aut", "esp", "gbr", "mco"]
     n_test_laps = 1
-    set_n = 1
-    agent_name = f"LocalMapPlanner_{set_n}"
+    set_n = 2
+    agent_name = f"LocalMapPlanner"
+    # path  = f"Data/TestRun_{set_n}/"
+    path  = f"Data/"
+    # ensure_path_exists(path)
 
     for map_name in map_list:
         env = F110Env(map=map_name, num_agents=1)
         env.add_render_callback(render_callback)
 
-        planner = LocalMapPlanner(agent_name, f"Data/{agent_name}/", map_name)
+        planner = LocalMapPlanner(agent_name, f"{path}{agent_name}/", map_name)
         run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
   

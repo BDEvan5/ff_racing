@@ -42,7 +42,7 @@ def test_pure_pursuit_all_maps():
     n_test_laps = 1
     
     set_n = 1
-    test_name = f"PurePursuit_{set_n}"
+    test_name = f"PurePursuit"
     for map_name in map_names:
         
         env = F110Env(map=map_name, num_agents=1)

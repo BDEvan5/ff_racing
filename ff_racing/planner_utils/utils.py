@@ -15,7 +15,11 @@ def init_file_struct(path):
             shutil.rmtree(path)
     os.mkdir(path)
 
-    
+   
+def ensure_path_exists(path):
+    if not os.path.exists(path): 
+        os.mkdir(path)
+ 
 
        
 def load_conf(fname):
