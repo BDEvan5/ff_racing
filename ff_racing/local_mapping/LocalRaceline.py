@@ -6,9 +6,6 @@ np.set_printoptions(precision=4)
 from ff_racing.local_mapping.local_map_utils import *
 
 
-DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
-TRACK_WIDTH = 1.8 # use fixed width
-POINT_SEP_DISTANCE = 1.2
 KAPPA_BOUND = 0.4
 VEHICLE_WIDTH = 0.8
 ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
@@ -28,10 +25,7 @@ class LocalRaceline:
         self.kappa = None
         self.vs = None
 
-        self.raceline_img_path = path + "RacingLineImgs/"
         self.raceline_data_path = path + "RacingLineData/"
-
-        ensure_path_exists(self.raceline_img_path)
         # ensure_path_exists(self.racing_line_data_path)
 
     def generate_raceline(self, local_map):
@@ -45,7 +39,6 @@ class LocalRaceline:
         coeffs_x, coeffs_y, M, normvec_normalized = tph.calc_splines.calc_splines(self.lm.track[:, :2], self.lm.el_lengths, self.lm.psi[0], self.lm.psi[-1])
         psi = self.lm.psi - np.pi/2 # Why?????
 
-        # Todo: adjust the start point to be the vehicle location and adjust the width accordingly
         try:
             alpha, error = tph.opt_min_curv.opt_min_curv(self.lm.track, self.lm.nvecs, M, KAPPA_BOUND, VEHICLE_WIDTH, print_debug=False, closed=False, psi_s=psi[0], psi_e=psi[-1], fix_s=True)
 
@@ -83,5 +76,47 @@ def normalise_raceline(raceline, step_size, psis):
                                     stepsize_approx=step_size)
     
     return raceline_interp, s_raceline_interp
+
+
+class PlotLocalRaceline(LocalRaceline):
+    def __init__(self, path):
+        super().__init__(path)
+
+        self.raceline_img_path = path + "RacingLineImgs/"
+        ensure_path_exists(self.raceline_img_path)
+    
+    def plot_save_raceline(self, lookahead_point=None, counter=0):
+        plt.figure(1)
+        plt.clf()
+        plt.title("Racing Line Velocity Profile")
+
+        plt.plot(self.lm.track[:, 0], self.lm.track[:, 1], '--', linewidth=2, color='black')
+
+        vs = self.vs
+        points = self.raceline.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        norm = plt.Normalize(2, 8)
+        lc = LineCollection(segments, cmap='jet', norm=norm)
+        lc.set_array(vs)
+        lc.set_linewidth(3)
+        line = plt.gca().add_collection(lc)
+        plt.colorbar(line)
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        l1 = self.lm.track[:, :2] + self.lm.nvecs * self.lm.track[:, 2][:, None]
+        l2 = self.lm.track[:, :2] - self.lm.nvecs * self.lm.track[:, 3][:, None]
+        plt.plot(l1[:, 0], l1[:, 1], color='green')
+        plt.plot(l2[:, 0], l2[:, 1], color='green')
+
+        plt.plot(0, 0, 'x', markersize=10, color='black')
+        if lookahead_point is not None:
+            plt.plot(lookahead_point[0], lookahead_point[1], 'ro')
+
+        plt.tight_layout()
+
+        plt.savefig(self.raceline_img_path + f"Raceline_{counter}.svg")
+
+
 
 

@@ -1,7 +1,7 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-from ff_racing.local_mapping.VehicleStateHistory import VehicleStateHistory
-from ff_racing.local_mapping.TrackLine import TrackLine
+from ff_racing.planner_utils.VehicleStateHistory import VehicleStateHistory
+from ff_racing.planner_utils.TrackLine import TrackLine
 from numba import njit  
 
 import cv2 as cv

@@ -13,8 +13,8 @@ Adjustments have been made
 import numpy as np
 from numba import njit
 import os
-from ff_racing.local_mapping.TrackLine import TrackLine
-from ff_racing.local_mapping.VehicleStateHistory import VehicleStateHistory
+from ff_racing.planner_utils.TrackLine import TrackLine
+from ff_racing.planner_utils.VehicleStateHistory import VehicleStateHistory
 
 LOOKAHEAD_DISTANCE = 1
 WHEELBASE = 0.33

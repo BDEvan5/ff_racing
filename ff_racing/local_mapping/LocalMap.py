@@ -25,6 +25,8 @@ class PlotLocalMap(LocalMap):
     def __init__(self, track):
         super().__init__(track)
 
+        # self.local_map_img_path = self.path + "LocalMapImgs/"
+        # ensure_path_exists(self.local_map_img_path)
     
     def plot_local_map(self, save_path=None, counter=0, xs=None, ys=None):
         l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]

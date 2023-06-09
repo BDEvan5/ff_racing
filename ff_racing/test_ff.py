@@ -1,7 +1,7 @@
 from ff_racing.f1tenth_gym.f110_env import F110Env
 
 from ff_racing.Planners.FrenetFramePlanner import FrenetFramePlanner
-from ff_racing.Planners.LocalMapOptimisationPlanner import LocalMapPlanner
+from ff_racing.Planners.LocalMapPlanner import LocalMapPlanner
 
 import numpy as np
 
@@ -52,13 +52,25 @@ def test_frenet_planner():
     env = F110Env(map=map_name, num_agents=1)
     env.add_render_callback(render_callback)
 
-    agent_name = f"LocalMap_lineproj_{map_name.upper()}"
-    # planner = FrenetFramePlanner(agent_name, f"Data/{agent_name}/")
-    # agent_name = "LocalMap_TrajOpt"
-    planner = LocalMapPlanner(agent_name, f"Data/{agent_name}/")
+    set_n = 1
+    agent_name = f"LocalMapPlanner_{set_n}"
+    planner = LocalMapPlanner(agent_name, f"Data/{agent_name}/", map_name)
     run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
+def test_lm_planner_all():
+    map_list = ["aut", "esp", "gbr", "mco"]
+    n_test_laps = 1
+    set_n = 1
+    agent_name = f"LocalMapPlanner_{set_n}"
+
+    for map_name in map_list:
+        env = F110Env(map=map_name, num_agents=1)
+        env.add_render_callback(render_callback)
+
+        planner = LocalMapPlanner(agent_name, f"Data/{agent_name}/", map_name)
+        run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
   
 if __name__ == "__main__":
-    test_frenet_planner()
+    # test_frenet_planner()
+    test_lm_planner_all()
