@@ -11,7 +11,7 @@ from ff_racing.PlannerUtils.LocalMap import LocalMap
 from ff_racing.PlannerUtils.OptimiseLocalMap import LocalMap
 
 
-LOOKAHEAD_DISTANCE = 1.5
+LOOKAHEAD_DISTANCE = 1.1
 WHEELBASE = 0.33
 MAX_STEER = 0.4
 MAX_SPEED = 8
@@ -41,19 +41,21 @@ class LocalOptimisationPlanner:
         
     def plan(self, obs):
         scan = obs['scans'][0]
+        print(f"Number {self.counter}")
         
         np.save(self.path + "ScanData/" + f"ScanData_{self.counter}.npy", obs['scans'][0])
         # self.local_map.generate_local_map(scan)
         self.local_map.generate_line_local_map(scan)
-        self.local_map.plot_save_local_map()
-        # self.local_map.generate_minimum_curvature_path()
-        # self.local_map.generate_max_speed_profile()
-        # self.local_map.plot_save_raceline()
+        # self.local_map.plot_save_local_map()
+        self.local_map.generate_minimum_curvature_path()
+        self.local_map.generate_max_speed_profile()
 
-        plt.pause(0.0001)
-        # action = self.pure_pursuit_racing_line()
-        action = self.pure_pursuit_center_line()
+        # plt.pause(0.0001)
+        # action = self.pure_pursuit_center_line()
+        action, lhd = self.pure_pursuit_racing_line()
+        print(f"Action: {action}")
 
+        self.local_map.plot_save_raceline(lhd)
         self.vehicle_state_history.add_memory_entry(obs, action)
 
         self.counter += 1
@@ -72,16 +74,20 @@ class LocalOptimisationPlanner:
         return np.array([steering_angle, speed])
 
     def pure_pursuit_racing_line(self):
-        current_progress = np.linalg.norm(self.local_map.raceline)
+        current_progress = np.linalg.norm(self.local_map.raceline[0, :])
         lookahead = LOOKAHEAD_DISTANCE + current_progress
         lookahead = min(lookahead, self.local_map.s_raceline[-1]) 
+        print(f"Lookahead: {lookahead}")
         lookahead_point = interp_2d_points(lookahead, self.local_map.s_raceline, self.local_map.raceline)
 
         steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
-        speed = 3
-        
-        return np.array([steering_angle, speed])
+        # speed = 3
+        speed = np.interp(current_progress, self.local_map.s_raceline, self.local_map.vs) * 0.8
+        max_turning_speed = calculate_speed(steering_angle)
+        speed = min(speed, max_turning_speed)
+
+        return np.array([steering_angle, speed]), lookahead_point
     
         
     def done_callback(self, obs):
@@ -89,6 +95,22 @@ class LocalOptimisationPlanner:
         pass
         
      
+@njit(cache=True)
+def calculate_speed(delta, f_s=0.8, max_v=7):
+    b = 0.523
+    g = 9.81
+    l_d = 0.329
+
+    if abs(delta) < 0.03:
+        return max_v
+    if abs(delta) > 0.4:
+        return 0
+
+    V = f_s * np.sqrt(b*g*l_d/np.tan(abs(delta)))
+
+    V = min(V, max_v)
+
+    return V
     
 # @njit(fastmath=False, cache=True)
 def get_steering_actuation(pose_theta, lookahead_point, position, lookahead_distance, wheelbase):

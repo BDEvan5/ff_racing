@@ -35,11 +35,11 @@ def interpolate_track(points, n_points, s=10):
 DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
 POINT_SEP_DISTANCE = 1.2
 KAPPA_BOUND = 0.4
-VEHICLE_WIDTH = 0.4
+VEHICLE_WIDTH = 0.8
 NUMBER_LOCAL_MAP_POINTS = 10
 ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
 ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
-MU = 0.54 
+MU = 0.5
 V_MAX = 8
 VEHICLE_MASS = 3.4
 
@@ -76,42 +76,6 @@ class LocalMap:
         # ensure_path_exists(self.racing_line_data_path)
         self.counter = 0
 
-    def generate_local_map(self, scan):
-        self.counter += 1
-        xs = self.coses[scan < 10] * scan[scan < 10]
-        ys = self.sines[scan < 10] * scan[scan < 10]
-        self.xs = xs[180:-180]
-        self.ys = ys[180:-180]
-
-        pts = np.hstack((self.xs[:, None], self.ys[:, None]))
-        pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
-        mid_idx = np.argmax(pt_distances)
-
-        l1_cs = np.cumsum(pt_distances[:mid_idx+1])
-        l2_cs = np.cumsum(pt_distances[mid_idx:])
-        
-        l1_ss = np.linspace(0, l1_cs[-1], NUMBER_LOCAL_MAP_POINTS)
-        l2_ss = np.linspace(0, l2_cs[-1], NUMBER_LOCAL_MAP_POINTS)
-
-        l1_xs, l1_ys = interp_2d_points(l1_ss, l1_cs, pts[:mid_idx+1])
-        l2_xs, l2_ys = interp_2d_points(l2_ss, l2_cs, pts[mid_idx+1:])
-        
-        c_xs = (l1_xs + l2_xs[::-1])/2
-        c_ys = (l1_ys + l2_ys[::-1])/2
-        center_line = np.hstack((c_xs[:, None], c_ys[:, None]))
-        
-        cl_dists = np.linalg.norm(center_line[1:] - center_line[:-1], axis=1)
-        cl_cs = np.cumsum(cl_dists)
-        cl_cs = np.insert(cl_cs, 0, 0)
-        cl_ss = np.linspace(0, cl_cs[-1], NUMBER_LOCAL_MAP_POINTS)
-        cl_xs, cl_ys = interp_2d_points(cl_ss, cl_cs, center_line)
-        
-        center_line = np.hstack((cl_xs[:, None], cl_ys[:, None]))
-        ws = np.ones_like(center_line)
-        self.track = np.concatenate((center_line, ws), axis=1)
-        
-        self.calculate_track_heading_and_nvecs()
-
     def generate_line_local_map(self, scan):
         self.counter += 1
         xs = self.coses[scan < 10] * scan[scan < 10]
@@ -124,13 +88,14 @@ class LocalMap:
         track_width = 1.8 # use fixed width
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
         inds = np.where(pt_distances > DISTNACE_THRESHOLD)
-        if len(inds[0]) == 0:
+        inds = np.delete(inds, np.where(inds[0] == 0)) # removes possible error condidtion
+        if len(inds) == 0:
             print("Problem using sliced scan: using full scan")
             self.xs, self.ys = xs, ys # do not exclude any points
             pts = np.hstack((self.xs[:, None], self.ys[:, None]))
             pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
             inds = np.where(pt_distances > DISTNACE_THRESHOLD)
-            if len(inds[0]) == 0:
+            if len(inds) == 0:
                 print("Problem with full scan... skipping")
 
                 plt.figure(1)
@@ -177,7 +142,6 @@ class LocalMap:
                 self.track[:, 2] *= 0.9
             else:
                 self.track[:, 3] *= 0.9
-            print(f"ks: {self.kappa}")
             self.calculate_track_heading_and_nvecs()
             crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, min(5, len(self.track)//2))
             print(f"{i}:: Normals crossed --> New Crossing: {crossing} --> width: {self.track[0, 2:]}")
@@ -241,12 +205,12 @@ class LocalMap:
 
         plt.savefig(self.local_map_img_path + f"Local_map_{self.counter}.svg")
         
-    def plot_save_raceline(self):
+    def plot_save_raceline(self, lookahead_point=None):
         plt.figure(1)
         plt.clf()
         plt.title("Racing Line Velocity Profile")
 
-        plt.plot(self.track[:, 0], self.track[:, 1], '-', linewidth=2, color='blue')
+        plt.plot(self.track[:, 0], self.track[:, 1], '--', linewidth=2, color='black')
 
         vs = self.vs
         points = self.raceline.reshape(-1, 1, 2)
@@ -265,10 +229,14 @@ class LocalMap:
         plt.plot(l1[:, 0], l1[:, 1], color='green')
         plt.plot(l2[:, 0], l2[:, 1], color='green')
 
-        plt.xticks([])
-        plt.yticks([])
+        plt.plot(0, 0, 'x', markersize=10, color='black')
+        if lookahead_point is not None:
+            plt.plot(lookahead_point[0], lookahead_point[1], 'ro')
+
+        # plt.xticks([])
+        # plt.yticks([])
         plt.tight_layout()
-        plt.legend(["Track", "Raceline", "Boundaries"], ncol=3)
+        # plt.legend(["Track", "Raceline", "Boundaries"], ncol=3)
 
         plt.savefig(self.raceline_img_path + f"Raceline_{self.counter}.svg")
 
