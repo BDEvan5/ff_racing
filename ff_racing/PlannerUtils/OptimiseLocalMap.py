@@ -1,35 +1,9 @@
 import numpy as np
-import os
 import matplotlib.pyplot as plt
-import trajectory_planning_helpers as tph
-import glob
+import ff_racing.tph_utils as tph
 from matplotlib.collections import LineCollection
-from scipy.interpolate import splrep, BSpline
 np.set_printoptions(precision=4)
-
-
-def interp_2d_points(ss, xp, points):
-    xs = np.interp(ss, xp, points[:, 0])
-    ys = np.interp(ss, xp, points[:, 1])
-    
-    return xs, ys
-
-def ensure_path_exists(path):
-    if not os.path.exists(path): 
-        os.mkdir(path)
-
-
-def interpolate_track(points, n_points, s=10):
-    el = np.linalg.norm(np.diff(points, axis=0), axis=1)
-    cs = np.insert(np.cumsum(el), 0, 0)
-    ss = np.linspace(0, cs[-1], n_points)
-    tck_x = splrep(cs, points[:, 0], s=s)
-    tck_y = splrep(cs, points[:, 1], s=s)
-    xs = BSpline(*tck_x)(ss) # get unispaced points
-    ys = BSpline(*tck_y)(ss)
-    new_points = np.hstack((xs[:, None], ys[:, None]))
-
-    return new_points
+from ff_racing.PlannerUtils.local_map_utils import *
 
 
 DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
@@ -42,6 +16,7 @@ ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
 MU = 0.5
 V_MAX = 8
 VEHICLE_MASS = 3.4
+TRACK_WIDTH = 1.8 # use fixed width
 
 class LocalMap:
     def __init__(self, path) -> None:
@@ -84,8 +59,6 @@ class LocalMap:
         self.ys = ys[180:-180]
 
         pts = np.hstack((self.xs[:, None], self.ys[:, None]))
-        # track_width = np.linalg.norm(pts[0] - pts[-1]) * 0.95
-        track_width = 1.8 # use fixed width
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
         inds = np.where(pt_distances > DISTNACE_THRESHOLD)
         inds = np.delete(inds, np.where(inds[0] == 0)) # removes possible error condidtion
@@ -127,10 +100,10 @@ class LocalMap:
         psi2, kappa2 = tph.calc_head_curv_num.calc_head_curv_num(long_side, side_el, False)
         side_nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi2-np.pi/2)
 
-        center_line = long_side + side_nvecs * w * track_width / 2
+        center_line = long_side + side_nvecs * w * TRACK_WIDTH / 2
         center_line = interpolate_track(center_line, n_pts, 1)
 
-        ws = np.ones_like(center_line) * track_width / 2
+        ws = np.ones_like(center_line) * TRACK_WIDTH / 2
         self.track = np.concatenate((center_line, ws), axis=1)
         self.calculate_track_heading_and_nvecs()
 
