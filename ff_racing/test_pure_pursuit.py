@@ -39,10 +39,11 @@ def test_pure_pursuit():
   
 def test_pure_pursuit_all_maps():
     map_names = ["aut", "esp", "gbr", "mco"]
-    n_test_laps = 2
+    n_test_laps = 1
     
+    set_n = 1
+    test_name = f"PurePursuit_{set_n}"
     for map_name in map_names:
-        test_name = f"PurePursuit_{map_name}"
         
         env = F110Env(map=map_name, num_agents=1)
         planner = PurePursuit(map_name, test_name)

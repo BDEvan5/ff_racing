@@ -24,14 +24,12 @@ class LocalMapPlanner:
         self.path = path
         
         ensure_path_exists(path)
-        ensure_path_exists(path + "ScanData/")
         self.vehicle_state_history = VehicleStateHistory(name, map_name)
-                
         self.counter = 0
+                
         self.local_map_generator = LocalMapGenerator(self.path)
         self.local_map = None
         self.local_raceline = LocalRaceline(self.path)
-        self.local_position = np.array([0, 0])
         
     def plan(self, obs):
         self.local_map = self.local_map_generator.generate_line_local_map(obs['scans'][0])
