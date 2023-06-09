@@ -1,12 +1,14 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-from ff_racing.PlannerUtils.VehicleStateHistory import VehicleStateHistory
-from ff_racing.PlannerUtils.TrackLine import TrackLine
+from ff_racing.local_mapping.VehicleStateHistory import VehicleStateHistory
+from ff_racing.local_mapping.TrackLine import TrackLine
 from numba import njit  
 
-from ff_racing.PlannerUtils.local_map_utils import *
-from ff_racing.PlannerUtils.LocalMap import LocalMap
-from ff_racing.PlannerUtils.OptimiseLocalMap import LocalMap
+from ff_racing.local_mapping.local_map_utils import *
+from ff_racing.local_mapping.LocalMap import LocalMap
+from ff_racing.local_mapping.LocalMapGenerator import LocalMapGenerator
+from ff_racing.local_mapping.LocalRaceline import LocalRaceline
+
 np.set_printoptions(precision=4)
 
 
@@ -16,7 +18,7 @@ MAX_STEER = 0.4
 MAX_SPEED = 8
 
 
-class LocalOptimisationPlanner:
+class LocalMapPlanner:
     def __init__(self, name, path):
         self.name = name
         self.path = path
@@ -26,7 +28,8 @@ class LocalOptimisationPlanner:
         self.vehicle_state_history = VehicleStateHistory(name, "LocalMap")
                 
         self.counter = 0
-        self.local_map = LocalMap(self.path)
+        self.local_map_generator = LocalMapGenerator(self.path)
+        self.local_raceline = LocalRaceline(self.path)
         self.local_position = np.array([0, 0])
         
     def plan(self, obs):
@@ -35,17 +38,15 @@ class LocalOptimisationPlanner:
         
         np.save(self.path + "ScanData/" + f"ScanData_{self.counter}.npy", obs['scans'][0])
         # self.local_map.generate_local_map(scan)
-        self.local_map.generate_line_local_map(scan)
+        lm = self.local_map_generator.generate_line_local_map(scan)
         # self.local_map.plot_save_local_map()
-        self.local_map.generate_minimum_curvature_path()
-        self.local_map.generate_max_speed_profile()
+        self.local_raceline.generate_raceline(lm)
 
-        # plt.pause(0.0001)
         # action = self.pure_pursuit_center_line()
         action, lhd = self.pure_pursuit_racing_line()
         print(f"Action: {action}")
 
-        self.local_map.plot_save_raceline(lhd)
+        # self.local_map.plot_save_raceline(lhd)
         self.vehicle_state_history.add_memory_entry(obs, action)
 
         self.counter += 1
@@ -64,15 +65,14 @@ class LocalOptimisationPlanner:
         return np.array([steering_angle, speed])
 
     def pure_pursuit_racing_line(self):
-        current_progress = np.linalg.norm(self.local_map.raceline[0, :])
+        current_progress = np.linalg.norm(self.local_raceline.raceline[0, :])
         lookahead = LOOKAHEAD_DISTANCE + current_progress
-        lookahead = min(lookahead, self.local_map.s_raceline[-1]) 
-        # print(f"Lookahead: {lookahead:.2f}")
-        lookahead_point = interp_2d_points(lookahead, self.local_map.s_raceline, self.local_map.raceline)
+        lookahead = min(lookahead, self.local_raceline.s_track[-1]) 
+        lookahead_point = interp_2d_points(lookahead, self.local_raceline.s_track, self.local_raceline.raceline)
 
         steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
-        speed = np.interp(current_progress, self.local_map.s_raceline, self.local_map.vs) * 0.8
+        speed = np.interp(current_progress, self.local_raceline.s_track, self.local_raceline.vs) * 0.8
         max_turning_speed = calculate_speed(steering_angle)
         speed = min(speed, max_turning_speed)
 

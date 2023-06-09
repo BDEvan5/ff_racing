@@ -11,7 +11,7 @@ from matplotlib.ticker import PercentFormatter
 from matplotlib.collections import LineCollection
 
 from ff_racing.DataTools.MapData import MapData
-from ff_racing.PlannerUtils.TrackLine import TrackLine 
+from ff_racing.local_mapping.TrackLine import TrackLine 
 from ff_racing.DataTools.plotting_utils import *
 from matplotlib.ticker import MultipleLocator
 

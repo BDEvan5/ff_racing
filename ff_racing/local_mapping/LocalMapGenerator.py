@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import ff_racing.tph_utils as tph
 from matplotlib.collections import LineCollection
 np.set_printoptions(precision=4)
-from ff_racing.PlannerUtils.local_map_utils import *
-
+from ff_racing.local_mapping.local_map_utils import *
+from ff_racing.local_mapping.LocalMap import LocalMap
 
 DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
 TRACK_WIDTH = 1.8 # use fixed width
@@ -17,7 +17,9 @@ MU = 0.5
 V_MAX = 8
 VEHICLE_MASS = 3.4
 
-class LocalMap:
+
+
+class LocalMapGenerator:
     def __init__(self, path) -> None:
         fov2 = 4.7 / 2
         self.angles = np.linspace(-fov2, fov2, 1080)
@@ -25,29 +27,11 @@ class LocalMap:
         self.sines = np.sin(self.angles)
         self.xs, self.ys = None, None 
 
-        self.track = None
-        self.el_lengths = None
-        self.psi = None
-        self.kappa = None
-        self.nvecs = None
-        self.s_track = None
-
-        self.raceline = None
-        self.psi_r = None
-        self.kappa_r = None
-        self.vs = None
-        self.el_lengths_r = None
-        self.s_raceline = None
-
         self.local_map_img_path = path + "LocalMapImgs/"
         self.local_map_data_path = path + "LocalMapData/"
-        self.raceline_img_path = path + "RacingLineImgs/"
-        self.raceline_data_path = path + "RacingLineData/"
 
         ensure_path_exists(self.local_map_img_path)
         # ensure_path_exists(self.local_map_data_path)
-        ensure_path_exists(self.raceline_img_path)
-        # ensure_path_exists(self.racing_line_data_path)
         self.counter = 0
 
     def generate_line_local_map(self, scan):
@@ -60,14 +44,9 @@ class LocalMap:
         long_side, n_pts, w = self.calculate_longest_line(pts, pt_distances, inds)
 
         track = self.project_side_to_track(long_side, w, n_pts)
-        track, el, ss, psi, kappa, nvecs = self.adjust_track_normals(track)
+        local_map = self.adjust_track_normals(track)
 
-        self.track = track
-        self.el_lengths = el
-        self.s_track = ss
-        self.psi = psi
-        self.kappa = kappa
-        self.nvecs = nvecs
+        return local_map
 
     def extract_track_lines(self, xs, ys):
         clip_xs, clip_ys = xs[180:-180], ys[180:-180] 
@@ -111,17 +90,9 @@ class LocalMap:
 
         return long_side, n_pts, w
 
-    def calculate_length_heading_nvecs(self, pts):
-        el_lengths = np.linalg.norm(np.diff(pts[:, :2], axis=0), axis=1)
-        ss = np.insert(np.cumsum(el_lengths), 0, 0)
-        psi, kappa = tph.calc_head_curv_num.calc_head_curv_num(pts, el_lengths, False)
-        nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi-np.pi/2)
-
-        return el_lengths, ss, psi, kappa, nvecs
-
     def project_side_to_track(self, side, w, n_pts):
-        _el, _ss, _psi, _kappa, side_nvecs = self.calculate_length_heading_nvecs(side)
-        center_line = side + side_nvecs * w * TRACK_WIDTH / 2
+        side_lm = LocalMap(side)
+        center_line = side + side_lm.nvecs * w * TRACK_WIDTH / 2
         center_line = interpolate_track(center_line, n_pts, 1)
 
         ws = np.ones_like(center_line) * TRACK_WIDTH / 2
@@ -130,30 +101,21 @@ class LocalMap:
         return track
 
     def adjust_track_normals(self, track):
-        el, ss, psi, kappa, nvecs = self.calculate_length_heading_nvecs(track)
+        lm = LocalMap(track)
 
-        crossing_horizon = min(5, len(track)//2 -1)
+        crossing_horizon = min(5, len(lm.track)//2 -1)
         i = 0
-        while i < 20 and tph.check_normals_crossing.check_normals_crossing(track, nvecs, crossing_horizon):
+        while i < 20 and tph.check_normals_crossing.check_normals_crossing(lm.track, lm.nvecs, crossing_horizon):
             i += 1
-            if np.mean(self.kappa) > 0:
-                track[:, 2] *= 0.9
+            if np.mean(lm.kappa) > 0:
+                lm.track[:, 2] *= 0.9
             else:
-                track[:, 3] *= 0.9
-            el, ss, psi, kappa, nvecs = self.calculate_length_heading_nvecs(track)
-            print(f"{i}:: Normals crossed --> New width: {track[0, 2:]}")
+                lm.track[:, 3] *= 0.9
+            lm.calculate_length_heading_nvecs()
+            print(f"{i}:: Normals crossed --> New width: {lm.track[0, 2:]}")
 
-        return track, el, ss, psi, kappa, nvecs
+        return lm
 
-    def calculate_track_heading_and_nvecs(self):
-        self.el_lengths = np.linalg.norm(np.diff(self.track[:, :2], axis=0), axis=1)
-        
-        self.psi, self.kappa = tph.calc_head_curv_num.calc_head_curv_num(self.track[:, :2], self.el_lengths, False)
-        
-        self.nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(self.psi-np.pi/2)
-
-        self.s_track = np.cumsum(self.el_lengths)
-        self.s_track = np.insert(self.s_track, 0, 0)
         
     def generate_minimum_curvature_path(self):
         coeffs_x, coeffs_y, M, normvec_normalized = tph.calc_splines.calc_splines(self.track[:, :2], self.el_lengths, self.psi[0], self.psi[-1])
@@ -179,29 +141,6 @@ class LocalMap:
         self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, self.el_lengths_r, False, 0, VEHICLE_MASS, ggv=ggv, mu=mu, v_max=V_MAX, v_start=starting_speed)
 
 
-    def plot_save_local_map(self):
-        l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]
-        l2 = self.track[:, :2] - self.nvecs * self.track[:, 3][:, None]
-
-        plt.figure(1)
-        plt.clf()
-        plt.plot(self.xs, self.ys, '.', color='#0057e7', alpha=0.7)
-        plt.plot(self.track[:, 0], self.track[:, 1], '-', color='#E74C3C', label="Center", linewidth=3)
-        plt.plot(0, 0, 'x', color='black', markersize=10)
-
-        plt.plot(l1[:, 0], l1[:, 1], color='#ffa700')
-        plt.plot(l2[:, 0], l2[:, 1], color='#ffa700')
-
-        for i in range(len(self.track)):
-            xs = [l1[i, 0], l2[i, 0]]
-            ys = [l1[i, 1], l2[i, 1]]
-            plt.plot(xs, ys, '#ffa700')
-
-        plt.title("Local Map")
-
-        plt.gca().set_aspect('equal', adjustable='box')
-
-        plt.savefig(self.local_map_img_path + f"Local_map_{self.counter}.svg")
         
     def plot_save_raceline(self, lookahead_point=None):
         plt.figure(1)
@@ -239,22 +178,6 @@ class LocalMap:
         plt.savefig(self.raceline_img_path + f"Raceline_{self.counter}.svg")
 
 
-
-
-def normalise_raceline(raceline, step_size, psis):
-    r_el_lengths = np.linalg.norm(np.diff(raceline, axis=0), axis=1)
-    
-    coeffs_x, coeffs_y, M, normvec_normalized = tph.calc_splines.calc_splines(raceline, r_el_lengths, psis[0], psis[-1])
-    
-    spline_lengths_raceline = tph.calc_spline_lengths.            calc_spline_lengths(coeffs_x=coeffs_x, coeffs_y=coeffs_y)
-    
-    raceline_interp, spline_inds_raceline_interp, t_values_raceline_interp, s_raceline_interp = tph.            interp_splines.interp_splines(spline_lengths=spline_lengths_raceline,
-                                    coeffs_x=coeffs_x,
-                                    coeffs_y=coeffs_y,
-                                    incl_last_point=False,
-                                    stepsize_approx=0.2)
-    
-    return raceline_interp, s_raceline_interp
 
 
 
