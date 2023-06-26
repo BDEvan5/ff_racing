@@ -38,7 +38,7 @@ class LocalMapPlanner:
         self.local_raceline.generate_raceline(self.local_map)
 
         # action = self.pure_pursuit_center_line()
-        action, lhd = self.pure_pursuit_racing_line()
+        action, lhd = self.pure_pursuit_racing_line(obs)
 
         self.vehicle_state_history.add_memory_entry(obs, action)
 
@@ -48,6 +48,7 @@ class LocalMapPlanner:
     def pure_pursuit_center_line(self):
         current_progress = np.linalg.norm(self.local_map.track[0, 0:2])
         lookahead = LOOKAHEAD_DISTANCE + current_progress
+
         lookahead = min(lookahead, self.local_map.s_track[-1]) 
         lookahead_point = interp_2d_points(lookahead, self.local_map.s_track, self.local_map.track[:, 0:2])
 
@@ -57,17 +58,19 @@ class LocalMapPlanner:
         
         return np.array([steering_angle, speed])
 
-    def pure_pursuit_racing_line(self):
+    def pure_pursuit_racing_line(self, obs):
         current_progress = np.linalg.norm(self.local_raceline.raceline[0, :])
         lookahead = LOOKAHEAD_DISTANCE + current_progress
+        # lookahead = 0.3 + obs['linear_vels_x'][0] * 0.15 + current_progress
         lookahead = min(lookahead, self.local_raceline.s_track[-1]) 
         lookahead_point = interp_2d_points(lookahead, self.local_raceline.s_track, self.local_raceline.raceline)
 
-        steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
+        exact_lookahead = np.linalg.norm(lookahead_point)
+        steering_angle = get_local_steering_actuation(lookahead_point, exact_lookahead, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
         speed = np.interp(current_progress, self.local_raceline.s_track, self.local_raceline.vs) #* 0.8
         max_turning_speed = calculate_speed(steering_angle, f_s=0.99, max_v=8)
-        print(f"Speed: {speed:.3f}, Max turning speed: {max_turning_speed:.3f} --> Difference: {(speed - max_turning_speed):.3f}")
+        # print(f"Speed: {speed:.3f}, Max turning speed: {max_turning_speed:.3f} --> Difference: {(speed - max_turning_speed):.3f}")
         speed = min(speed, max_turning_speed)
 
 
@@ -79,7 +82,7 @@ class LocalMapPlanner:
         
         progress = self.track_line.calculate_progress_percent([final_obs['poses_x'][0], final_obs['poses_y'][0]]) * 100
         
-        print(f"Test lap complete --> Time: {final_obs['lap_times'][0]:.2f}, Colission: {bool(final_obs['collisions'][0])}, Lap p: {progress:.1f}%")
+        print(f"Lap complete ({self.track_line.map_name.upper()}) --> Time: {final_obs['lap_times'][0]:.2f}, Progress: {progress:.1f}%")
         
      
 @njit(cache=True)
@@ -99,6 +102,18 @@ def calculate_speed(delta, f_s=0.8, max_v=7):
 
     return V
     
+
+     
+# @njit(cache=True)
+# def calculate_speed_limit(delta, friction_limit=1.2):
+#     if abs(delta) < 0.03:
+#         return MAX_SPEED
+
+#     V = np.sqrt(friction_limit*GRAVITY*WHEELBASE/np.tan(abs(delta)))
+#     V = min(V, MAX_SPEED)
+
+#     return V
+
 # @njit(fastmath=False, cache=True)
 def get_steering_actuation(pose_theta, lookahead_point, position, lookahead_distance, wheelbase):
     waypoint_y = np.dot(np.array([np.sin(-pose_theta), np.cos(-pose_theta)]), lookahead_point[0:2]-position)

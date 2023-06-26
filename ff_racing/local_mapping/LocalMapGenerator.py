@@ -101,7 +101,7 @@ class LocalMapGenerator:
             else:
                 lm.track[:, 3] *= 0.9
             lm.calculate_length_heading_nvecs()
-            print(f"{i}:: Normals crossed --> New width: {lm.track[0, 2:]}")
+            # print(f"{i}:: Normals crossed --> New width: {lm.track[0, 2:]}")
 
         return lm
 

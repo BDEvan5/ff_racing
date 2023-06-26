@@ -7,7 +7,7 @@ from ff_racing.planner_utils.utils import ensure_path_exists
 import numpy as np
 
 RENDER_ENV = False
-# RENDER_ENV = True
+RENDER_ENV = True
 
 
 def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
@@ -73,7 +73,8 @@ def test_lm_planner_all():
 
         planner = LocalMapPlanner(agent_name, f"{path}{agent_name}/", map_name)
         run_simulation_loop_laps(env, planner, n_test_laps, 10)
-  
+
+        env.renderer = None
   
 if __name__ == "__main__":
     # test_frenet_planner()
