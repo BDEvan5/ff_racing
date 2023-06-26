@@ -19,10 +19,6 @@ class TrackLine:
         self.total_s = self.ss[-1]
         self.N = len(self.wpts)
         
-        if expand:
-            self._expand_wpts()
-            
-            
         self.diffs = self.wpts[1:,:] - self.wpts[:-1,:]
         self.l2s   = self.diffs[:,0]**2 + self.diffs[:,1]**2
 
@@ -66,34 +62,12 @@ class TrackLine:
                 track.append(lines)
 
         track = np.array(track)
-        print(f"Track Loaded: {filename}")
-
         self.wpts = track[:, 1:3]
         self.vs = track[:, 5] 
 
         seg_lengths = np.linalg.norm(np.diff(self.wpts, axis=0), axis=1)
         self.ss = np.insert(np.cumsum(seg_lengths), 0, 0)
     
-    def _expand_wpts(self):
-        n = 5 # number of pts per orig pt 
-        dz = 1 / n
-        o_line = self.wpts
-        o_vs = self.vs
-        new_line = []
-        new_vs = []
-        for i in range(len(o_line)-1):
-            dd = sub_locations(o_line[i+1], o_line[i])
-            for j in range(n):
-                pt = add_locations(o_line[i], dd, dz*j)
-                new_line.append(pt)
-
-                dv = o_vs[i+1] - o_vs[i]
-                new_vs.append(o_vs[i] + dv * j * dz)
-
-        self.wpts = np.array(new_line)
-        self.vs = np.array(new_vs)
-
-
     def plot_wpts(self):
         plt.figure(1)
         plt.plot(self.wpts[:, 0], self.wpts[:, 1], 'b-')

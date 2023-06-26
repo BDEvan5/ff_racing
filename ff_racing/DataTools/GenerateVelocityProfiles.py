@@ -10,7 +10,7 @@ from matplotlib.ticker import PercentFormatter
 from matplotlib.collections import LineCollection
 
 from ff_racing.DataTools.MapData import MapData
-from ff_racing.PlannerUtils.TrackLine import TrackLine 
+from ff_racing.planner_utils.TrackLine import TrackLine 
 from ff_racing.DataTools.plotting_utils import *
 from matplotlib.ticker import MultipleLocator
 
@@ -39,6 +39,8 @@ class AnalyseTestLapData:
         vehicle_folders = glob.glob(f"{path}*/")
         print(vehicle_folders)
         print(f"{len(vehicle_folders)} folders found")
+        self.save_folder = path + "Imgs/"
+        ensure_path_exists(self.save_folder)
 
         set = 1
         for j, folder in enumerate(vehicle_folders):
@@ -50,13 +52,15 @@ class AnalyseTestLapData:
         self.path = folder
 
         self.vehicle_name = self.path.split("/")[-2]
+        if self.vehicle_name == "Imgs": return
         print(f"Vehicle name: {self.vehicle_name}")
         
         testing_folders = glob.glob(f"{folder}Testing*/")
         for test_folder in testing_folders:
             self.test_folder = test_folder
             test_folder_name = test_folder.split("/")[-2]
-            self.map_name = test_folder_name.split("_")[1].lower()
+            self.map_name = test_folder_name[-3:].lower()
+            # self.map_name = test_folder_name.split("_")[1].lower()
         
             self.map_data = MapData(self.map_name)
             self.std_track = TrackLine(self.map_name, False)
@@ -111,7 +115,7 @@ class AnalyseTestLapData:
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
         
-        name = self.test_folder + f"{self.vehicle_name}_velocity_map_{self.lap_n}"
+        name = self.save_folder + f"{self.vehicle_name}_trajectory_{self.map_name}_{self.lap_n}"
         std_img_saving(name)
 
 
@@ -126,7 +130,7 @@ def esp_right_limits():
 def analyse_folder():
 
     TestData = AnalyseTestLapData()
-    TestData.explore_folder("Data/")
+    TestData.explore_folder("Data/TestRun_2/")
 
 
 if __name__ == '__main__':

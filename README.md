@@ -37,7 +37,7 @@ This is the simulator from www.github.com/f1tenth/f1tenth_gym. It contains minor
 
 The DDPG, TD3 and SAC learning algorithms from the repo, github.com/BDEvan5/BaselineDRL.
 They are simple, single file implementations for use in robotic control.
-They use neural networks in the `PlannerUtils/Networks.py` file and replay buffers from `PlannerUtils/ReplayBuffers.py`. 
+They use neural networks in the `local_mapping/Networks.py` file and replay buffers from `local_mapping/ReplayBuffers.py`. 
 Each algorith contains an act and a train method.
 
 ### Data Saving

@@ -13,14 +13,14 @@ Adjustments have been made
 import numpy as np
 from numba import njit
 import os
-from ff_racing.PlannerUtils.TrackLine import TrackLine
-from ff_racing.PlannerUtils.VehicleStateHistory import VehicleStateHistory
+from ff_racing.planner_utils.TrackLine import TrackLine
+from ff_racing.planner_utils.VehicleStateHistory import VehicleStateHistory
 
-LOOKAHEAD_DISTANCE = 1
+LOOKAHEAD_DISTANCE = 0.8
 WHEELBASE = 0.33
 MAX_STEER = 0.4
 MAX_SPEED = 8
-
+GRAVITY = 9.81
 
 class PurePursuit:
     def __init__(self, map_name, test_name):
@@ -29,6 +29,7 @@ class PurePursuit:
             os.mkdir(path)
             
         self.track_line = TrackLine(map_name, True, False)
+        # self.track_line.plot_wpts()
 
         self.vehicle_state_history = VehicleStateHistory(test_name, map_name)
 
@@ -37,8 +38,11 @@ class PurePursuit:
     def plan(self, obs):
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
         theta = obs['poses_theta'][0]
+
+        # self.track_line.plot_vehicle(position, theta)
         
-        lookahead_point = self.track_line.get_lookahead_point(position, LOOKAHEAD_DISTANCE)
+        lookahead_distance = 0.3 + obs['linear_vels_x'][0] * 0.15
+        lookahead_point = self.track_line.get_lookahead_point(position, lookahead_distance)
 
         if obs['linear_vels_x'][0] < 1:
             return np.array([0.0, 4])
@@ -47,7 +51,8 @@ class PurePursuit:
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
             
         speed = min(speed_raceline, MAX_SPEED) # cap the speed
-
+        max_speed = calculate_speed_limit(steering_angle)
+        speed = min(speed, max_speed)
         action = np.array([steering_angle, speed])
         
         self.vehicle_state_history.add_memory_entry(obs, action)
@@ -60,7 +65,7 @@ class PurePursuit:
         
         progress = self.track_line.calculate_progress_percent([final_obs['poses_x'][0], final_obs['poses_y'][0]]) * 100
         
-        print(f"Test lap complete --> Time: {final_obs['lap_times'][0]:.2f}, Colission: {bool(final_obs['collisions'][0])}, Lap p: {progress:.1f}%")
+        print(f"Lap complete ({self.track_line.map_name.upper()}) --> Time: {final_obs['lap_times'][0]:.2f}, Progress: {progress:.1f}%")
 
 
 
@@ -74,3 +79,13 @@ def get_actuation(pose_theta, lookahead_point, position, lookahead_distance, whe
     steering_angle = np.arctan(wheelbase/radius)
     return speed, steering_angle
 
+     
+@njit(cache=True)
+def calculate_speed_limit(delta, friction_limit=1.2):
+    if abs(delta) < 0.03:
+        return MAX_SPEED
+
+    V = np.sqrt(friction_limit*GRAVITY*WHEELBASE/np.tan(abs(delta)))
+    V = min(V, MAX_SPEED)
+
+    return V

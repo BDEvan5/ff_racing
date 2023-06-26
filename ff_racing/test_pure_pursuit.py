@@ -21,7 +21,7 @@ def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
                 observation, reward, done, info = env.step(action[None, :])
                 mini_i -= 1
 
-            if RENDER_ENV: env.render('human')
+            if RENDER_ENV: env.render('human_fast')
             
         planner.done_callback(observation)
         observation, reward, done, info = env.reset(poses=np.array([[0, 0, 0]]))   
@@ -38,17 +38,19 @@ def test_pure_pursuit():
     run_simulation_loop_laps(env, planner, n_test_laps, 1)
   
 def test_pure_pursuit_all_maps():
+    # map_names = ["gbr", "mco"]
     map_names = ["aut", "esp", "gbr", "mco"]
-    n_test_laps = 2
+    n_test_laps = 1
     
+    set_n = 1
+    test_name = f"PurePursuit"
     for map_name in map_names:
-        test_name = f"PurePursuit_{map_name}"
         
         env = F110Env(map=map_name, num_agents=1)
         planner = PurePursuit(map_name, test_name)
         
         run_simulation_loop_laps(env, planner, n_test_laps, 1)
-  
+        F110Env.renderer = None
   
 if __name__ == "__main__":
     # test_pure_pursuit()
