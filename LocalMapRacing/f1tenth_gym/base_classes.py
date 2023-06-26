@@ -33,9 +33,9 @@ import warnings
 import numpy as np
 from numba import njit
 
-from ff_racing.f1tenth_gym.dynamic_models import vehicle_dynamics_st, pid
-from ff_racing.f1tenth_gym.laser_models import ScanSimulator2D, check_ttc_jit, ray_cast
-from ff_racing.f1tenth_gym.collision_models import get_vertices, collision_multiple
+from LocalMapRacing.f1tenth_gym.dynamic_models import vehicle_dynamics_st, pid
+from LocalMapRacing.f1tenth_gym.laser_models import ScanSimulator2D, check_ttc_jit, ray_cast
+from LocalMapRacing.f1tenth_gym.collision_models import get_vertices, collision_multiple
 
 class Integrator(Enum):
     RK4 = 1

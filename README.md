@@ -1,4 +1,4 @@
-# ff_racing
+# LocalMapRacing
 This is a repo with example implementations of deep reinforcement learning algorithms for F1tenth racing.
 The aim is to provide a simple implementation that can help people to understand how to use DRL algorithms for autonomous racing.
 
@@ -8,8 +8,8 @@ The aim is to provide a simple implementation that can help people to understand
 ## Installation
 
 ```
-git clone https://github.com/BDEvan5/ff_racing
-cd ff_racing
+git clone https://github.com/BDEvan5/LocalMapRacing
+cd LocalMapRacing
 mkdir Data/
 pip install -e .
 ```

@@ -1,5 +1,5 @@
-from ff_racing.f1tenth_gym.f110_env import F110Env
-from ff_racing.Planners.PurePursuit import PurePursuit
+from LocalMapRacing.f1tenth_gym.f110_env import F110Env
+from LocalMapRacing.Planners.PurePursuit import PurePursuit
 
 
 import numpy as np

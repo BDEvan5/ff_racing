@@ -3,8 +3,8 @@ import numpy as np
 import glob
 import os
 
-from ff_racing.DataTools.MapData import MapData
-from ff_racing.planner_utils.TrackLine import TrackLine
+from LocalMapRacing.DataTools.MapData import MapData
+from LocalMapRacing.planner_utils.TrackLine import TrackLine
 
 SAVE_PDF = False
 # SAVE_PDF = True

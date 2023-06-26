@@ -1,13 +1,13 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-from ff_racing.planner_utils.VehicleStateHistory import VehicleStateHistory
-from ff_racing.planner_utils.TrackLine import TrackLine
+from LocalMapRacing.planner_utils.VehicleStateHistory import VehicleStateHistory
+from LocalMapRacing.planner_utils.TrackLine import TrackLine
 from numba import njit  
 
 import cv2 as cv
 from PIL import Image
 import os
-from ff_racing.local_mapping.LocalMap import LocalMap
+from LocalMapRacing.local_mapping.LocalMap import LocalMap
 
 LOOKAHEAD_DISTANCE = 1
 WHEELBASE = 0.33

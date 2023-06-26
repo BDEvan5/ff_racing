@@ -1,10 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import ff_racing.tph_utils as tph
+import LocalMapRacing.tph_utils as tph
 from matplotlib.collections import LineCollection
 np.set_printoptions(precision=4)
-from ff_racing.local_mapping.local_map_utils import *
-from ff_racing.local_mapping.LocalMap import LocalMap
+from LocalMapRacing.local_mapping.local_map_utils import *
+from LocalMapRacing.local_mapping.LocalMap import LocalMap
 
 DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
 TRACK_WIDTH = 1.8 # use fixed width

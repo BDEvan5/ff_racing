@@ -10,9 +10,9 @@ import glob
 from matplotlib.ticker import PercentFormatter
 from matplotlib.collections import LineCollection
 
-from ff_racing.DataTools.MapData import MapData
-from ff_racing.planner_utils.TrackLine import TrackLine 
-from ff_racing.DataTools.plotting_utils import *
+from LocalMapRacing.DataTools.MapData import MapData
+from LocalMapRacing.planner_utils.TrackLine import TrackLine 
+from LocalMapRacing.DataTools.plotting_utils import *
 from matplotlib.ticker import MultipleLocator
 
 SAVE_PDF = False

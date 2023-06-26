@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import ff_racing.tph_utils as tph
+import LocalMapRacing.tph_utils as tph
 from matplotlib.collections import LineCollection
 np.set_printoptions(precision=4)
-from ff_racing.local_mapping.local_map_utils import *
+from LocalMapRacing.local_mapping.local_map_utils import *
 
 
 KAPPA_BOUND = 0.4

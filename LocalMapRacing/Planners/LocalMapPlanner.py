@@ -1,13 +1,13 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-from ff_racing.planner_utils.VehicleStateHistory import VehicleStateHistory
-from ff_racing.planner_utils.TrackLine import TrackLine
+from LocalMapRacing.planner_utils.VehicleStateHistory import VehicleStateHistory
+from LocalMapRacing.planner_utils.TrackLine import TrackLine
 from numba import njit  
 
-from ff_racing.local_mapping.local_map_utils import *
-from ff_racing.local_mapping.LocalMap import LocalMap
-from ff_racing.local_mapping.LocalMapGenerator import LocalMapGenerator
-from ff_racing.local_mapping.LocalRaceline import LocalRaceline
+from LocalMapRacing.local_mapping.local_map_utils import *
+from LocalMapRacing.local_mapping.LocalMap import LocalMap
+from LocalMapRacing.local_mapping.LocalMapGenerator import LocalMapGenerator
+from LocalMapRacing.local_mapping.LocalRaceline import LocalRaceline
 
 np.set_printoptions(precision=4)
 
