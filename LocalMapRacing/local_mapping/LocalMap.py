@@ -21,6 +21,7 @@ class LocalMap:
         self.nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(self.psi-np.pi/2)
 
 
+
 class PlotLocalMap(LocalMap):
     def __init__(self, track):
         super().__init__(track)
@@ -51,6 +52,38 @@ class PlotLocalMap(LocalMap):
         plt.gca().set_aspect('equal', adjustable='box')
 
         if save_path is not None:
-            plt.savefig(save_path + f"Local_map_{self.counter}.svg")
+            plt.savefig(save_path + f"Local_map_{counter}.svg")
+
+    def plot_local_map_offset(self, offset_pos, offset_theta, origin, resolution, save_path=None, counter=0):
+        l1 = self.track[:, :2] + self.nvecs * self.track[:, 2][:, None]
+        l2 = self.track[:, :2] - self.nvecs * self.track[:, 3][:, None]
+
+        rotation = np.array([[np.cos(offset_theta), -np.sin(offset_theta)],
+                                [np.sin(offset_theta), np.cos(offset_theta)]])
+        
+        l1 = np.matmul(rotation, l1.T).T
+        l2 = np.matmul(rotation, l2.T).T
+
+        l1 = l1 + offset_pos
+        l2 = l2 + offset_pos
+
+        l1 = (l1 - origin) / resolution
+        l2 = (l2 - origin) / resolution
+
+        track = np.matmul(rotation, self.track[:, :2].T).T
+        track = track + offset_pos
+        track = (track - origin) / resolution
+
+        # plt.figure(1)
+        # plt.clf()
+        plt.plot(track[:, 0], track[:, 1], '-', color='#E74C3C', label="Center", linewidth=3)
+
+        plt.plot(l1[:, 0], l1[:, 1], color='#ffa700')
+        plt.plot(l2[:, 0], l2[:, 1], color='#ffa700')
+
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        if save_path is not None:
+            plt.savefig(save_path + f"Local_map_{counter}.svg")
 
 

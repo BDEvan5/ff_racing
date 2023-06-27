@@ -1,6 +1,6 @@
 from LocalMapRacing.f1tenth_gym.f110_env import F110Env
 from LocalMapRacing.Planners.LocalMPCC import LocalMPCC
-from LocalMapRacing.Planners.LocalMapPlanner import LocalMapPlanner
+from LocalMapRacing.Planners.LocalMapPP import LocalMapPP
 
 
 import numpy as np
@@ -11,7 +11,10 @@ RENDER_ENV = False
 
         
 def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
-    observation, reward, done, info = env.reset(poses=np.array([[0, 0, 0]]))
+    init_positions = np.array([[0, 0, 0]])
+    # init_positions = np.array([[2.45, -14.9, 2.7]])
+
+    observation, reward, done, info = env.reset(poses=init_positions)
     
     for lap in range(n_laps):
         while not done:
@@ -25,7 +28,7 @@ def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
             if RENDER_ENV: env.render('human_fast')
             
         planner.done_callback(observation)
-        observation, reward, done, info = env.reset(poses=np.array([[0, 0, 0]]))   
+        observation, reward, done, info = env.reset(poses=init_positions)
         
 
 
@@ -48,13 +51,15 @@ def render_callback(env_renderer):
 
 def test_pure_pursuit():
     map_name = "aut" # "aut", "esp", "gbr", "mco"
-    n_test_laps = 5
-    test_name = "my_best_pure_pursuit"
+    n_test_laps = 1
+    # test_name = "DataLocalPP"
+    test_name = "devel_local_mpcc"
     
     env = F110Env(map=map_name, num_agents=1)
-    planner = LocalMapPlanner(map_name, test_name)
+    # planner = LocalMapPP(test_name, map_name)
+    planner = LocalMPCC(map_name, test_name)
     
-    run_simulation_loop_laps(env, planner, n_test_laps, 1)
+    run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
 
 def test_pure_pursuit_all_maps():
@@ -66,7 +71,7 @@ def test_pure_pursuit_all_maps():
     for map_name in map_names:
         
         env = F110Env(map=map_name, num_agents=1)
-        planner = LocalMapPlanner(test_name, map_name)
+        planner = LocalMapPP(test_name, map_name)
         
         run_simulation_loop_laps(env, planner, n_test_laps, 10)
         F110Env.renderer = None  
@@ -87,9 +92,9 @@ def test_mpcc_all_maps():
   
 
 if __name__ == "__main__":
-    # test_pure_pursuit()
+    test_pure_pursuit()
     # test_pure_pursuit_all_maps()
-    test_mpcc_all_maps()
+    # test_mpcc_all_maps()
 
 
 

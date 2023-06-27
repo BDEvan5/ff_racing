@@ -47,7 +47,7 @@ class GlobalMPCC:
             os.mkdir(path)
         self.rp = ReferencePath(map_name)
         self.dt = 0.1
-        self.N = 20 # number of steps to predict
+        self.N = 10 # number of steps to predict
         self.nx = 4
         self.nu = 3
         self.p_initial = 5

@@ -1,12 +1,17 @@
 import numpy as np 
 import matplotlib.pyplot as plt
 import casadi as ca
-import os
 from matplotlib.collections import LineCollection
 
 from LocalMapRacing.planner_utils.TrackLine import TrackLine
-from LocalMapRacing.planner_utils.ReferencePath import ReferencePath
+from LocalMapRacing.planner_utils.LocalReference import LocalReference
 from LocalMapRacing.planner_utils.VehicleStateHistory import VehicleStateHistory
+
+from LocalMapRacing.local_mapping.LocalMap import LocalMap
+from LocalMapRacing.local_mapping.LocalMapGenerator import LocalMapGenerator
+from LocalMapRacing.local_mapping.local_map_utils import *
+
+
 
 VERBOSE = False
 # VERBOSE = True
@@ -42,23 +47,26 @@ def normalise_psi(psi):
 
 class LocalMPCC:
     def __init__(self, map_name, test_name):
-        path = f"Data/" + test_name + "/"
-        if not os.path.exists(path):
-            os.mkdir(path)
-        self.rp = ReferencePath(map_name)
+        self.name = test_name
+        self.path = f"Data/{test_name}/"
+        ensure_path_exists(self.path)
+        self.traj_path = f"Data/{test_name}/Trajectories/"
+        ensure_path_exists(self.traj_path)
+
         self.dt = 0.1
-        self.N = 20 # number of steps to predict
+        self.N = 10 # number of steps to predict
         self.nx = 4
         self.nu = 3
         self.p_initial = 5
         self.track = TrackLine(map_name, False)
         self.rt = TrackLine(map_name, True)
         self.vehicle_state_history = VehicleStateHistory(test_name, map_name)
+        self.counter = 0
         
-        self.x_min, self.y_min = np.min(self.rp.path, axis=0) - 2
+        self.x_min, self.y_min = -25, -25
         self.psi_min, self.s_min = -100, 0
-        self.x_max, self.y_max = np.max(self.rp.path, axis=0) + 2
-        self.psi_max, self.s_max = 100, self.rp.s_track[-1] *1.5
+        self.x_max, self.y_max = 25, 25
+        self.psi_max, self.s_max = 100, 20
 
         self.delta_min, self.p_min, self.v_min = -0.4, 1, 3
         self.delta_max, self.p_max, self.v_max = 0.4, 10, 8
@@ -70,9 +78,12 @@ class LocalMPCC:
 
         self.init_optimisation()
         self.init_constraints()
-        self.init_objective()
-        self.init_solver()
-       
+        # self.init_objective()
+        # self.init_solver()
+        
+        self.local_map_generator = LocalMapGenerator(self.path)
+        self.local_map = None
+
     def init_optimisation(self):
         # States
         x = ca.MX.sym('x')
@@ -111,7 +122,7 @@ class LocalMPCC:
             self.ubx[state_count:state_count + self.nu, 0] = np.array([[self.delta_max, self.v_max, self.p_max]])  # v and delta upper bound
             state_count += self.nu
 
-    def init_objective(self):
+    def init_objective(self, rp):
         self.obj = 0  # Objective function
         self.g = []  # constraints vector
 
@@ -122,8 +133,8 @@ class LocalMPCC:
             st_next = self.X[:, k + 1]
             con = self.U[:, k]
             
-            t_angle = self.rp.angle_lut_t(st_next[3])
-            ref_x, ref_y = self.rp.center_lut_x(st_next[3]), self.rp.center_lut_y(st_next[3])
+            t_angle = rp.angle_lut_t(st_next[3])
+            ref_x, ref_y = rp.center_lut_x(st_next[3]), rp.center_lut_y(st_next[3])
             #Contouring error
             e_c = ca.sin(t_angle) * (st_next[0] - ref_x) - ca.cos(t_angle) * (st_next[1] - ref_y)
             #Lag error
@@ -151,8 +162,8 @@ class LocalMPCC:
                 self.obj = self.obj + (con[1] - self.U[1, k - 1]) ** 2 * WEIGHT_SPEED_CHANGE  # minimize the change of steering input
                 self.g = ca.vertcat(self.g, ca.fabs(con[1] - self.U[1, k - 1]))  # prevent velocity change from being too abrupt
         
-        if VERBOSE:
-            print(f"G shape: {self.g.shape}")
+        # if VERBOSE:
+        #     print(f"G shape: {self.g.shape}")
 
     def init_solver(self):
         opts = {}
@@ -171,7 +182,66 @@ class LocalMPCC:
         nlp_prob = {'f': self.obj, 'x': OPT_variables, 'g': self.g, 'p': self.P}
         self.solver = ca.nlpsol('solver', 'ipopt', nlp_prob, opts)
 
+        
     def plan(self, obs):
+        self.local_map = self.local_map_generator.generate_line_local_map(obs['scans'][0])
+
+        rp = LocalReference(self.local_map)
+
+        x0 = np.zeros(3)
+        x0 = np.append(x0, rp.calculate_s(x0[0:2]))
+
+        self.init_objective(rp)
+        self.init_solver()
+
+        if self.warm_start:
+            self.construct_warm_start_soln(x0, rp) 
+
+        # self.track.plot_vehicle([obs['poses_x'][0], obs['poses_y'][0]], obs['poses_theta'][0])
+        fs = obs['full_states'][0]
+        p = self.generate_constraints_and_parameters(x0, fs[3], rp)
+        states, controls, solved_status = self.solve(p)
+        if not solved_status:
+            print("MPC not solved")
+            self.construct_warm_start_soln(x0, rp) 
+            states, controls, solved_status = self.solve(p)
+            if not solved_status:
+                print("MPC still not solved ------------->")
+
+        np.save(self.traj_path + f"States_{self.counter}.npy", states)
+        np.save(self.traj_path + f"Controls_{self.counter}.npy", controls)
+        first_control = controls[0, :]
+        action = first_control[0:2]
+
+        progress = self.track.calculate_progress_percent([obs['poses_x'][0], obs['poses_y'][0]]) * 100
+        print(f"S:{progress:2f} --> Action: {action}")
+
+        if VERBOSE:
+            rp.plot_path()
+            plt.figure(2)
+            points = states[:, 0:2].reshape(-1, 1, 2)
+            segments = np.concatenate([points[:-1], points[1:]], axis=1)
+            norm = plt.Normalize(0, 8)
+            lc = LineCollection(segments, cmap='jet', norm=norm)
+            lc.set_array(controls[:, 1])
+            lc.set_linewidth(4)
+            line = plt.gca().add_collection(lc)
+            plt.colorbar(line, fraction=0.046, pad=0.04, shrink=0.99)
+
+            size = 10
+            plt.xlim([-1, x0[0] + size])
+            plt.ylim([-5, 5])
+            # plt.ylim([x0[1] - size, x0[1] + size])
+            plt.pause(0.001)
+
+        self.vehicle_state_history.add_memory_entry(obs, action)
+        self.counter += 1
+
+        # plt.show()
+
+        return action
+
+    def plan_old(self, obs):
         x0 = obs["full_states"][0][np.array([0, 1, 4])]
         x0[2] = normalise_psi(x0[2]) 
 
@@ -293,21 +363,16 @@ class LocalMPCC:
 
         return action # return the first control action
 
-    def generate_constraints_and_parameters(self, x0_in, x0_speed):
-        if self.warm_start:
-            if VERBOSE:
-                print(f"Warm starting with condition: {x0_in}")
-            self.construct_warm_start_soln(x0_in) 
+    def generate_constraints_and_parameters(self, x0_in, x0_speed, rp):
+
 
         p = np.zeros(self.nx + 2 * self.N + 1)
         p[:self.nx] = x0_in
 
         for k in range(self.N):  # set the reference controls and path boundary conditions to track
             s = self.X0[k, 3]
-            if s > self.rp.track_length:
-                s = s - self.rp.track_length
-            right_point = [self.rp.right_lut_x(s).full()[0, 0], self.rp.right_lut_y(s).full()[0, 0]]
-            left_point = [self.rp.left_lut_x(s).full()[0, 0], self.rp.left_lut_y(s).full()[0, 0]]
+            right_point = [rp.right_lut_x(s).full()[0, 0], rp.right_lut_y(s).full()[0, 0]]
+            left_point = [rp.left_lut_x(s).full()[0, 0], rp.left_lut_y(s).full()[0, 0]]
 
             delta_x_path = right_point[0] - left_point[0]
             delta_y_path = right_point[1] - left_point[1]
@@ -369,16 +434,14 @@ class LocalMPCC:
             initial_arc_pos -= self.rp.track_length
         return initial_arc_pos
 
-    def construct_warm_start_soln(self, initial_state):
+    def construct_warm_start_soln(self, initial_state, rp):
         self.X0 = np.zeros((self.N + 1, self.nx))
         self.X0[0, :] = initial_state
         for k in range(1, self.N + 1):
             s_next = self.X0[k - 1, 3] + self.p_initial * self.dt
-            if s_next > self.rp.track_length:
-                s_next = s_next - self.rp.track_length
 
-            psi_next = self.rp.angle_lut_t(s_next).full()[0, 0]
-            x_next, y_next = self.rp.center_lut_x(s_next), self.rp.center_lut_y(s_next)
+            psi_next = rp.angle_lut_t(s_next).full()[0, 0]
+            x_next, y_next = rp.center_lut_x(s_next), rp.center_lut_y(s_next)
 
             # adjusts the centerline angle to be continuous
             psi_diff = self.X0[k-1, 2] - psi_next

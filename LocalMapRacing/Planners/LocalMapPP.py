@@ -18,7 +18,7 @@ MAX_STEER = 0.4
 MAX_SPEED = 8
 
 
-class LocalMapPlanner:
+class LocalMapPP:
     def __init__(self, test_name, map_name):
         self.name = test_name
         self.path = f"Data/{test_name}/"
@@ -28,7 +28,7 @@ class LocalMapPlanner:
         self.counter = 0
                 
         self.local_map_generator = LocalMapGenerator(self.path)
-        self.local_map = None
+        self.local_map = None # LocalMap(self.path)
         self.local_raceline = LocalRaceline(self.path)
 
         self.track_line = TrackLine(map_name, False, False)

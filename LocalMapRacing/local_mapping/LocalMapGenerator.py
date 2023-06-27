@@ -4,7 +4,7 @@ import LocalMapRacing.tph_utils as tph
 from matplotlib.collections import LineCollection
 np.set_printoptions(precision=4)
 from LocalMapRacing.local_mapping.local_map_utils import *
-from LocalMapRacing.local_mapping.LocalMap import LocalMap
+from LocalMapRacing.local_mapping.LocalMap import LocalMap, PlotLocalMap
 
 DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
 TRACK_WIDTH = 1.8 # use fixed width
@@ -20,7 +20,7 @@ class LocalMapGenerator:
         self.xs, self.ys = None, None 
 
         self.local_map_data_path = path + "LocalMapData/"
-        # ensure_path_exists(self.local_map_data_path)
+        ensure_path_exists(self.local_map_data_path)
         self.counter = 0
 
     def generate_line_local_map(self, scan):
@@ -34,6 +34,10 @@ class LocalMapGenerator:
 
         track = self.project_side_to_track(long_side, w, n_pts)
         local_map = self.adjust_track_normals(track)
+
+        local_map.plot_local_map()
+
+        np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
 
         return local_map
 
@@ -90,7 +94,8 @@ class LocalMapGenerator:
         return track
 
     def adjust_track_normals(self, track):
-        lm = LocalMap(track)
+        lm = PlotLocalMap(track)
+        # lm = LocalMap(track)
 
         crossing_horizon = min(5, len(lm.track)//2 -1)
         i = 0

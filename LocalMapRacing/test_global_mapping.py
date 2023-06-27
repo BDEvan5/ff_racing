@@ -30,13 +30,14 @@ def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
 
 def test_pure_pursuit():
     map_name = "aut" # "aut", "esp", "gbr", "mco"
-    n_test_laps = 5
-    test_name = "my_best_pure_pursuit"
+    n_test_laps = 1
+    test_name = "devel_global_mpcc"
     
     env = F110Env(map=map_name, num_agents=1)
-    planner = PurePursuit(map_name, test_name)
+    planner = GlobalMPCC(map_name, test_name)
+    # planner = PurePursuit(map_name, test_name)
     
-    run_simulation_loop_laps(env, planner, n_test_laps, 1)
+    run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
 def test_pure_pursuit_all_maps():
     map_names = ["aut", "esp", "gbr", "mco"]
@@ -67,6 +68,6 @@ def test_mpcc_all_maps():
         F110Env.renderer = None
   
 if __name__ == "__main__":
-    # test_pure_pursuit()
+    test_pure_pursuit()
     # test_pure_pursuit_all_maps()
-    test_mpcc_all_maps()
+    # test_mpcc_all_maps()

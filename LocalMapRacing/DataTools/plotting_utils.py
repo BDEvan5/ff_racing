@@ -125,6 +125,9 @@ plot_green = "#2ECC71"
 plot_red = "#E74C3C"
 plot_blue = "#3498DB"
 
+science_high_vis = ["#0d49fb", "#fec32d", "#e6091c", "#26eb47", "#8936df", "#25d7fd"]
+color_pallette = science_high_vis
+
 def plot_error_bars(x_base, mins, maxes, dark_color, w):
     for i in range(len(x_base)):
         xs = [x_base[i], x_base[i]]
