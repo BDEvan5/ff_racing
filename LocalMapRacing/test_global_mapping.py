@@ -1,4 +1,5 @@
 from LocalMapRacing.f1tenth_gym.f110_env import F110Env
+from LocalMapRacing.Planners.FastMPCC import FastMPCC
 from LocalMapRacing.Planners.PurePursuit import PurePursuit
 
 
@@ -38,20 +39,34 @@ def test_pure_pursuit():
     run_simulation_loop_laps(env, planner, n_test_laps, 1)
   
 def test_pure_pursuit_all_maps():
-    # map_names = ["gbr", "mco"]
     map_names = ["aut", "esp", "gbr", "mco"]
     n_test_laps = 1
     
     set_n = 1
-    test_name = f"PurePursuit"
+    test_name = f"GlobalPP"
     for map_name in map_names:
         
         env = F110Env(map=map_name, num_agents=1)
         planner = PurePursuit(map_name, test_name)
         
         run_simulation_loop_laps(env, planner, n_test_laps, 1)
+        F110Env.renderer = None  
+
+def test_mpcc_all_maps():
+    map_names = ["aut", "esp", "gbr", "mco"]
+    n_test_laps = 1
+    
+    set_n = 1
+    test_name = f"GlobalMPCC"
+    for map_name in map_names:
+        
+        env = F110Env(map=map_name, num_agents=1)
+        planner = FastMPCC(map_name, test_name)
+        
+        run_simulation_loop_laps(env, planner, n_test_laps, 10)
         F110Env.renderer = None
   
 if __name__ == "__main__":
     # test_pure_pursuit()
-    test_pure_pursuit_all_maps()
+    # test_pure_pursuit_all_maps()
+    test_mpcc_all_maps()
