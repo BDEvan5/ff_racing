@@ -40,7 +40,7 @@ def normalise_psi(psi):
     return psi
 
 
-class FastMPCC:
+class GlobalMPCC:
     def __init__(self, map_name, test_name):
         path = f"Data/" + test_name + "/"
         if not os.path.exists(path):

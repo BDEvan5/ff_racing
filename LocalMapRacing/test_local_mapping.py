@@ -1,8 +1,7 @@
 from LocalMapRacing.f1tenth_gym.f110_env import F110Env
-
-from LocalMapRacing.Planners.FrenetFramePlanner import FrenetFramePlanner
+from LocalMapRacing.Planners.LocalMPCC import LocalMPCC
 from LocalMapRacing.Planners.LocalMapPlanner import LocalMapPlanner
-from LocalMapRacing.planner_utils.utils import ensure_path_exists
+
 
 import numpy as np
 
@@ -10,6 +9,7 @@ RENDER_ENV = False
 # RENDER_ENV = True
 
 
+        
 def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
     observation, reward, done, info = env.reset(poses=np.array([[0, 0, 0]]))
     
@@ -22,12 +22,12 @@ def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
                 observation, reward, done, info = env.step(action[None, :])
                 mini_i -= 1
 
-            # if RENDER_ENV: env.render('human')
             if RENDER_ENV: env.render('human_fast')
             
         planner.done_callback(observation)
         observation, reward, done, info = env.reset(poses=np.array([[0, 0, 0]]))   
         
+
 
 def render_callback(env_renderer):
         e = env_renderer
@@ -45,37 +45,53 @@ def render_callback(env_renderer):
         e.bottom = bottom - block_size
 
 
-def test_frenet_planner():
+
+def test_pure_pursuit():
     map_name = "aut" # "aut", "esp", "gbr", "mco"
-    # map_name = "mco"
-    n_test_laps = 1
+    n_test_laps = 5
+    test_name = "my_best_pure_pursuit"
     
     env = F110Env(map=map_name, num_agents=1)
-    env.add_render_callback(render_callback)
-
-    set_n = 1
-    agent_name = f"LocalMapPlanner_{set_n}"
-    planner = LocalMapPlanner(agent_name, f"Data/{agent_name}/", map_name)
-    run_simulation_loop_laps(env, planner, n_test_laps, 10)
+    planner = LocalMapPlanner(map_name, test_name)
+    
+    run_simulation_loop_laps(env, planner, n_test_laps, 1)
   
-def test_lm_planner_all():
-    map_list = ["aut", "esp", "gbr", "mco"]
+
+def test_pure_pursuit_all_maps():
+    map_names = ["aut", "esp", "gbr", "mco"]
     n_test_laps = 1
-    set_n = 2
-    agent_name = f"LocalMapPlanner"
-    # path  = f"Data/TestRun_{set_n}/"
-    path  = f"Data/"
-    # ensure_path_exists(path)
-
-    for map_name in map_list:
+    
+    set_n = 1
+    test_name = f"LocalPP"
+    for map_name in map_names:
+        
         env = F110Env(map=map_name, num_agents=1)
-        env.add_render_callback(render_callback)
-
-        planner = LocalMapPlanner(agent_name, f"{path}{agent_name}/", map_name)
+        planner = LocalMapPlanner(test_name, map_name)
+        
         run_simulation_loop_laps(env, planner, n_test_laps, 10)
+        F110Env.renderer = None  
 
-        env.renderer = None
+def test_mpcc_all_maps():
+    map_names = ["aut", "esp", "gbr", "mco"]
+    n_test_laps = 1
+    
+    set_n = 1
+    test_name = f"GlobalMPCC"
+    for map_name in map_names:
+        
+        env = F110Env(map=map_name, num_agents=1)
+        planner = LocalMPCC(map_name, test_name)
+        
+        run_simulation_loop_laps(env, planner, n_test_laps, 10)
+        F110Env.renderer = None
   
+
 if __name__ == "__main__":
-    # test_frenet_planner()
-    test_lm_planner_all()
+    # test_pure_pursuit()
+    # test_pure_pursuit_all_maps()
+    test_mpcc_all_maps()
+
+
+
+
+

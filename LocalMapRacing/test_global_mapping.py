@@ -1,5 +1,5 @@
 from LocalMapRacing.f1tenth_gym.f110_env import F110Env
-from LocalMapRacing.Planners.FastMPCC import FastMPCC
+from LocalMapRacing.Planners.GlobalMPCC import GlobalMPCC
 from LocalMapRacing.Planners.PurePursuit import PurePursuit
 
 
@@ -61,7 +61,7 @@ def test_mpcc_all_maps():
     for map_name in map_names:
         
         env = F110Env(map=map_name, num_agents=1)
-        planner = FastMPCC(map_name, test_name)
+        planner = GlobalMPCC(map_name, test_name)
         
         run_simulation_loop_laps(env, planner, n_test_laps, 10)
         F110Env.renderer = None

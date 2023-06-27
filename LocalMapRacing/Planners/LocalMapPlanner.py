@@ -19,12 +19,12 @@ MAX_SPEED = 8
 
 
 class LocalMapPlanner:
-    def __init__(self, name, path, map_name):
-        self.name = name
-        self.path = path
+    def __init__(self, test_name, map_name):
+        self.name = test_name
+        self.path = f"Data/{test_name}/"
         
-        ensure_path_exists(path)
-        self.vehicle_state_history = VehicleStateHistory(name, map_name)
+        ensure_path_exists(self.path)
+        self.vehicle_state_history = VehicleStateHistory(test_name, map_name)
         self.counter = 0
                 
         self.local_map_generator = LocalMapGenerator(self.path)

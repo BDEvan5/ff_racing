@@ -3,17 +3,8 @@ import numpy as np
 import glob
 import os
 
-from PIL import Image
-import glob
-import trajectory_planning_helpers as tph
-from matplotlib.ticker import PercentFormatter
-from matplotlib.collections import LineCollection
-
-from RacingRewards.DataTools.MapData import MapData
-from RacingRewards.RewardSignals.StdTrack import StdTrack 
-from RacingRewards.RewardSignals.RacingTrack import RacingTrack
-from RacingRewards.Utils.utils import *
-from matplotlib.ticker import MultipleLocator
+from LocalMapRacing.DataTools.MapData import MapData
+from LocalMapRacing.planner_utils.TrackLine import TrackLine
 
 SAVE_PDF = False
 # SAVE_PDF = True
@@ -68,11 +59,14 @@ class AnalyseTestLapData:
                 file.write(f" \n")
 
             self.map_data = MapData(self.map_name)
-            self.std_track = StdTrack(self.map_name)
-            self.racing_track = RacingTrack(self.map_name)
+            self.std_track = TrackLine(self.map_name, False)
+            self.racing_track = TrackLine(self.map_name, True)
 
-            if not self.load_lap_data(): break # no more laps
-            self.calculate_lap_statistics()
+            for self.lap_n in range(100):
+                if not self.load_lap_data(): break # no more laps
+                self.calculate_lap_statistics()
+
+            self.generate_summary_stats()
 
     def load_lap_data(self):
         file_name = f"Testing{self.map_name.upper()}/Lap_{self.lap_n}_history_{self.vehicle_name}.npy"
@@ -107,6 +101,50 @@ class AnalyseTestLapData:
         with open(self.path + f"Statistics{self.map_name[-3:].upper()}.txt", "a") as file:
             file.write(f"{self.lap_n},  {total_distance:14.4f},  {progress:14.4f}, {time:14.4f}, {avg_velocity:14.4f} \n")
 
+    def generate_summary_stats(self):
+        progress_ind = 2
+        n_values = 5
+        data = []
+        for i in range(n_values): 
+            data.append([])
+
+        n_success, n_total = 0, 0
+        progresses = []
+        with open(self.path + f"Statistics{self.map_name[-3:].upper()}.txt", 'r') as file:
+            lines = file.readlines()
+            if len(lines) < 3: return
+            
+            for lap_n in range(len(lines)-2):
+                line = lines[lap_n+2] # first lap is heading
+                line = line.split(',')
+                progress = float(line[progress_ind])
+                n_total += 1
+                progresses.append(progress)
+                if progress < 0.005 or progress > 0.99:
+                    n_success += 1
+                    for i in range(n_values):
+                        data[i].append(float(line[i]))
+                else:
+                    continue
+        
+        progresses = np.array(progresses)
+        data = np.array(data)
+        with open(self.path + f"SummaryStatistics{self.map_name[-3:].upper()}.txt", "w") as file:
+            file.write(lines[0])
+            file.write("".join(["-"]*17*n_values) + "\n" )
+            file.write(lines[1][:-1] + "  Avg. Progress\n")
+            file.write("".join(["-"]*17*n_values) + "\n" )
+            file.write("0  ")
+            for i in range(1, n_values):
+                if i == progress_ind:
+                    file.write(f", {np.mean(progresses*100):14.4f}")
+                else:
+                    avg = np.mean(data[i])
+                    file.write(f", {avg:14.4f}")
+            file.write(f",           {n_success/n_total * 100}")
+            file.write("\n")
+            file.write("".join(["-"]*17*n_values) + "\n" )
+            
 
 def generate_folder_statistics(folder):
     TestData = AnalyseTestLapData()
@@ -116,9 +154,13 @@ def generate_folder_statistics(folder):
 def analyse_folder():
     p = "Data/"
     
+    
     TestData = AnalyseTestLapData()
-    TestData.explore_folder(p)
 
+    path = p + "GlobalPP/"
+    TestData.explore_folder(path)
+    path = p + "GlobalMPCC/"
+    TestData.explore_folder(path)
 
 if __name__ == '__main__':
     analyse_folder()
