@@ -1,6 +1,7 @@
 import numpy as np 
 from matplotlib import pyplot as plt
 from LocalMapRacing.local_mapping.LocalMap import LocalMap, PlotLocalMap
+from LocalMapRacing.local_mapping.LocalMapGenerator import LocalMapGenerator
 from LocalMapRacing.DataTools.MapData import MapData
 from LocalMapRacing.DataTools.plotting_utils import *
 
@@ -8,6 +9,8 @@ from LocalMapRacing.planner_utils.utils import ensure_path_exists
 from matplotlib.patches import RegularPolygon
 from matplotlib.patches import Polygon
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+
+
 
 def make_img(name, i):
     path  = f"Data/{name}/"
@@ -21,7 +24,6 @@ def make_img(name, i):
 
     position = states[i, 0:2]
     heading = states[i, 4]
-
 
     map_data = MapData(map_name)
     origin = map_data.map_origin[:2]
@@ -59,44 +61,82 @@ def make_img(name, i):
     ab = AnnotationBbox(oi, (x-3.5, y+6), xycoords='data', frameon=False)
     plt.gca().add_artist(ab)
 
-    plt.plot(scan_pts[:, 0], scan_pts[:, 1], 'x', color=color_pallette[0])
+    plt.plot(scan_pts[:, 0], scan_pts[:, 1], 'x', color=color_pallette[0], label="LiDAR Scan")
 
     poly_pts = np.array([[x, y], scan_pts[0], scan_pts[100], scan_pts[452], scan_pts[453], scan_pts[480], scan_pts[500], scan_pts[530], scan_pts[550], scan_pts[570], scan_pts[590], scan_pts[650], scan_pts[-1]])
     poly = Polygon(poly_pts, color=color_pallette[0], alpha=0.3)
     plt.gca().add_patch(poly)
 
-    plt.axis('equal')
     plt.gca().axis('off')
-
     b = 10
     plt.xlim([np.min(scan_pts[:, 0]) - b, np.max(scan_pts[:, 0]) + b])
     plt.ylim([np.min(scan_pts[:, 1]) - b, np.max(scan_pts[:, 1]) + b])
+    plt.legend(loc='upper right', fontsize=12)
+    plt.text(x - 25, y - 73, "Track", fontsize=16)
 
     plt.tight_layout()
 
     plt.savefig(img_path + f"env_scan_{i}.svg", bbox_inches='tight', pad_inches=0)
-    return
-    plt.show()
 
     # plot local map
-
-    local_track = np.load(file)
-    local_map = PlotLocalMap(local_track)
-
-    local_map.plot_local_map(img_path, i)
-
-    plt.figure(5)
     plt.clf()
+    lm_generator = LocalMapGenerator("Data/LocalImgs/")
+
+    xs, ys = cosines * scan, sines * scan
+    pts, pt_distances, inds = lm_generator.extract_full_track_lines(xs, ys)
+    long_side, short_side = lm_generator.extract_boundaries(pts, pt_distances, inds)
+    # track = lm_generator.project_side_to_track(long_side, w, n_pts)
+    # local_map = lm_generator.adjust_track_normals(track)
+
+    # lm = lm_generator.generate_line_local_map(scan, False)
+    # lm.plot_local_map(img_path, i)
     map_data.plot_map_img()
-    x, y = map_data.xy2rc(states[i, 0], states[i, 1])
-    plt.plot(x, y, 'x', color='red')
+
+    long_side = (np.matmul(rotation, long_side.T).T + position - origin ) / map_data.map_resolution
+    short_side = (np.matmul(rotation, short_side.T).T + position - origin ) / map_data.map_resolution
+
+    plt.plot(scan_pts[:, 0], scan_pts[:, 1], 'x', color=color_pallette[0], label="Scan", alpha=0.9)
+    boundary_color = color_pallette[2]
+    plt.plot(long_side[:, 0], long_side[:, 1], '-', color=boundary_color, linewidth=3)
+    plt.plot(short_side[:, 0], short_side[:, 1], '-', color=boundary_color, label="Boundaries", linewidth=3)
+
+    img = plt.imread("LocalMapRacing/DataTools/RacingCar.png", format='png')
+    img = rotate_bound(img, 150)
+    oi = OffsetImage(img, zoom=0.5)
+    ab = AnnotationBbox(oi, (x-3.5, y+6), xycoords='data', frameon=False)
+    plt.gca().add_artist(ab)
+
+    poly_pts = np.array([[x, y], scan_pts[0], scan_pts[100], scan_pts[452], scan_pts[453], scan_pts[480], scan_pts[500], scan_pts[530], scan_pts[550], scan_pts[570], scan_pts[590], scan_pts[650], scan_pts[-1]])
+    poly = Polygon(poly_pts, color=color_pallette[0], alpha=0.2)
+    plt.gca().add_patch(poly)
 
     plt.gca().axis('off')
+    b = 15
+    plt.xlim([np.min(short_side[:, 0]) - b, np.max(long_side[:, 0]) + b])
+    plt.ylim([np.min(long_side[:, 1]) - b, np.max(long_side[:, 1]) + b])
 
-    plt.savefig(img_path + f"local_pos_{i}.svg", bbox_inches='tight', pad_inches=0)
+    plt.legend(loc='upper right', fontsize=12)
+
+    plt.savefig(img_path + f"env_boundaries_{i}.svg", bbox_inches='tight', pad_inches=0)
 
 
-    local_map.plot_local_map_offset(position, heading, map_data.map_origin[:2], map_data.map_resolution, full_path, i)
+    # local_track = np.load(file)
+    # local_map = PlotLocalMap(local_track)
+
+    # local_map.plot_local_map(img_path, i)
+
+    # plt.figure(5)
+    # plt.clf()
+    # map_data.plot_map_img()
+    # x, y = map_data.xy2rc(states[i, 0], states[i, 1])
+    # plt.plot(x, y, 'x', color='red')
+
+    # plt.gca().axis('off')
+
+    # plt.savefig(img_path + f"local_pos_{i}.svg", bbox_inches='tight', pad_inches=0)
+
+
+    # local_map.plot_local_map_offset(position, heading, map_data.map_origin[:2], map_data.map_resolution, full_path, i)
 
     # plot traj
 

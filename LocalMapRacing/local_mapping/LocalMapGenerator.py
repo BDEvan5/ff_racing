@@ -6,6 +6,7 @@ np.set_printoptions(precision=4)
 from LocalMapRacing.local_mapping.local_map_utils import *
 from LocalMapRacing.local_mapping.LocalMap import LocalMap, PlotLocalMap
 
+
 DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
 TRACK_WIDTH = 1.8 # use fixed width
 POINT_SEP_DISTANCE = 1.2
@@ -23,7 +24,7 @@ class LocalMapGenerator:
         ensure_path_exists(self.local_map_data_path)
         self.counter = 0
 
-    def generate_line_local_map(self, scan):
+    def generate_line_local_map(self, scan, save=True):
         self.counter += 1
         xs = self.coses[scan < 10] * scan[scan < 10] #? why are long beams excluded???? Try without this.
         ys = self.sines[scan < 10] * scan[scan < 10]
@@ -37,7 +38,7 @@ class LocalMapGenerator:
 
         local_map.plot_local_map()
 
-        np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
+        if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
 
         return local_map
 
@@ -57,6 +58,17 @@ class LocalMapGenerator:
 
             if len(inds) == 0: 
                 raise IOError("Problem with full scan, no gaps found")
+
+        return pts, pt_distances, inds
+    
+    def extract_full_track_lines(self, xs, ys):
+        pts = np.hstack((xs[:, None], ys[:, None]))
+        pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
+        inds = np.where(pt_distances > DISTNACE_THRESHOLD)
+        inds = np.delete(inds, np.where(inds[0] == 0)) 
+
+        if len(inds) == 0:
+            raise IOError("Problem with full scan, no gaps found")
 
         return pts, pt_distances, inds
 
@@ -82,6 +94,37 @@ class LocalMapGenerator:
         long_side = interpolate_track(long_pts, n_pts*2, 0)
 
         return long_side, n_pts, w
+
+    def extract_boundaries(self, pts, pt_distances, inds):
+        arr_inds = np.arange(len(pt_distances))[inds]
+        min_ind = np.min(arr_inds) + 1
+        max_ind = np.max(arr_inds) + 1
+
+        l1_cs = np.cumsum(pt_distances[:min_ind-1])
+        l2_cs = np.cumsum(pt_distances[max_ind:])
+
+        if l1_cs[-1] > l2_cs[-1]:
+            long_pts = pts[:min_ind]
+            long_length = l1_cs[-1]
+
+            short_pts = pts[max_ind:]
+            short_pts = short_pts[::-1]
+            short_length = l2_cs[-1]
+        else:
+            long_pts = pts[max_ind:]
+            long_pts = long_pts[::-1]
+            long_length = l2_cs[-1]
+
+            short_pts = pts[:min_ind]
+            short_length = l1_cs[-1]
+
+        n_pts = int(short_length / POINT_SEP_DISTANCE)
+        short_side = interpolate_track(short_pts, n_pts*2, 0)
+
+        n_pts = int(long_length / POINT_SEP_DISTANCE)
+        long_side = interpolate_track(long_pts, n_pts*2, 0)
+
+        return long_side, short_side
 
     def project_side_to_track(self, side, w, n_pts):
         side_lm = LocalMap(side)
