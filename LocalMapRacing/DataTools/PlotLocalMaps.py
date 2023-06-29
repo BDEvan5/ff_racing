@@ -5,7 +5,8 @@ from LocalMapRacing.DataTools.MapData import MapData
 
 from LocalMapRacing.planner_utils.utils import ensure_path_exists
 
-def plot_local_maps(path):
+def plot_local_maps(name):
+    path  = f"Data/{name}/"
     map_root = path + "LocalMapData/"
     map_name = "aut"
     lm_path = path + "LocalMapImgs/"
@@ -15,7 +16,7 @@ def plot_local_maps(path):
     ensure_path_exists(pos_path)
     ensure_path_exists(full_path)
 
-    history = np.load(path + "TestingAUT/" + "Lap_0_history_devel_local_mpcc.npy")
+    history = np.load(path + "TestingAUT/" + f"Lap_0_history_{name}.npy")
     states = history[:, 0:7]
     actions = history[:, 7:9]
 
@@ -50,7 +51,8 @@ def plot_local_maps(path):
 
 
 
-plot_local_maps("Data/devel_local_mpcc/")
+plot_local_maps("LocalImgs")
+# plot_local_maps("Data/devel_local_mpcc/")
 
 
 

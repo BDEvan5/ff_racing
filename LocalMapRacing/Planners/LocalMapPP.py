@@ -24,6 +24,8 @@ class LocalMapPP:
         self.path = f"Data/{test_name}/"
         
         ensure_path_exists(self.path)
+        ensure_path_exists(self.path + "ScanData/")
+
         self.vehicle_state_history = VehicleStateHistory(test_name, map_name)
         self.counter = 0
                 
@@ -35,10 +37,11 @@ class LocalMapPP:
         
     def plan(self, obs):
         self.local_map = self.local_map_generator.generate_line_local_map(obs['scans'][0])
+        np.save(self.path + "ScanData/" + f"scan_{self.counter}.npy", obs['scans'][0])
         self.local_raceline.generate_raceline(self.local_map)
 
-        # action = self.pure_pursuit_center_line()
-        action, lhd = self.pure_pursuit_racing_line(obs)
+        action = self.pure_pursuit_center_line()
+        # action, lhd = self.pure_pursuit_racing_line(obs)
 
         self.vehicle_state_history.add_memory_entry(obs, action)
 

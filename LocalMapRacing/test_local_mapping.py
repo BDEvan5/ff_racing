@@ -53,11 +53,12 @@ def test_pure_pursuit():
     map_name = "aut" # "aut", "esp", "gbr", "mco"
     n_test_laps = 1
     # test_name = "DataLocalPP"
-    test_name = "devel_local_mpcc"
+    # test_name = "devel_local_mpcc"
+    test_name = "LocalImgs"
     
     env = F110Env(map=map_name, num_agents=1)
-    # planner = LocalMapPP(test_name, map_name)
-    planner = LocalMPCC(map_name, test_name)
+    planner = LocalMapPP(test_name, map_name)
+    # planner = LocalMPCC(map_name, test_name)
     
     run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
