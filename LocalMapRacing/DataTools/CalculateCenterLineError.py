@@ -95,6 +95,56 @@ def calculate_centerline_area_error(name):
     states = history[:, 0:7]
     actions = history[:, 7:9]
 
+    lm_errors = []
+    for i in range(1, 260):
+        file = map_root + f"local_map_{i}.npy"
+        try:
+            local_track = np.load(file)
+        except: break
+
+        distances, progresses = [], []
+        c_points = []
+        position = states[i, 0:2]
+        transformed_lm = []
+        heading = states[i, 4]
+        rotation_matrix = np.array([[np.cos(heading), -np.sin(heading)], 
+                                [np.sin(heading), np.cos(heading)]])
+        t_lm = np.matmul(rotation_matrix, local_track[:, :2].T).T
+        for k in range(len(local_track)):
+            pt = position + t_lm[k]
+            transformed_lm.append(pt)
+            c_point, s, h_true = map_centerline.calucalte_center_point(pt)
+            distances.append(h_true)
+            progresses.append(s)
+            c_points.append(c_point)
+
+        mean_dist = np.mean(distances)
+        print(f"Step {i}: {mean_dist}")
+        if mean_dist < 2:
+            lm_errors.append(mean_dist)
+
+    np.save(path + f"local_map_error_{name}.npy", lm_errors)
+
+    plt.plot(lm_errors)
+
+    plt.savefig(path + f"local_map_error_{name}.svg")
+
+
+def calculate_centerline_area_error_plot(name):
+    map_name = "aut"
+    map_centerline = MapCenterline(map_name)
+
+    path = f"Data/{name}/"
+
+    lm_path = path + "LocalMapError/"
+    ensure_path_exists(lm_path)
+    
+    map_root = path + "LocalMapData/"
+    history = np.load(path + "TestingAUT/" + f"Lap_0_history_{name}.npy")
+    states = history[:, 0:7]
+    actions = history[:, 7:9]
+
+    lm_errors = []
     for i in range(1, 260):
         file = map_root + f"local_map_{i}.npy"
         try:
@@ -110,10 +160,12 @@ def calculate_centerline_area_error(name):
         c_points = []
         position = states[i, 0:2]
         transformed_lm = []
-        rotation_matrix = np.array([[np.cos(states[i, 2]), -np.sin(states[i, 2])], 
-                                    [np.sin(states[i, 2]), np.cos(states[i, 2])]])
+        heading = states[i, 4]
+        rotation_matrix = np.array([[np.cos(heading), -np.sin(heading)], 
+                                [np.sin(heading), np.cos(heading)]])
+        t_lm = np.matmul(rotation_matrix, local_track[:, :2].T).T
         for k in range(len(local_track)):
-            pt = position + np.matmul(rotation_matrix, local_track[k, :2])
+            pt = position + t_lm[k]
             transformed_lm.append(pt)
             c_point, s, h_true = map_centerline.calucalte_center_point(pt)
             distances.append(h_true)
@@ -131,6 +183,12 @@ def calculate_centerline_area_error(name):
 
 
 
+
+    np.save(path + f"local_map_error_{name}.npy", lm_errors)
+
+    plt.plot(lm_errors)
+
+    plt.savefig(path + f"local_map_error_{name}.svg")
 
 
 calculate_centerline_area_error("LocalCenterPP")
