@@ -2,6 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from LocalMapRacing.local_mapping.LocalMap import LocalMap, PlotLocalMap
 from LocalMapRacing.local_mapping.LocalMapGenerator import LocalMapGenerator
+from LocalMapRacing.local_mapping.LocalRaceline import LocalRaceline
 from LocalMapRacing.DataTools.MapData import MapData
 from LocalMapRacing.DataTools.plotting_utils import *
 
@@ -9,7 +10,7 @@ from LocalMapRacing.planner_utils.utils import ensure_path_exists
 from matplotlib.patches import RegularPolygon
 from matplotlib.patches import Polygon
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-
+from matplotlib.collections import LineCollection
 
 
 def make_img(name, i):
@@ -119,51 +120,137 @@ def make_img(name, i):
 
     plt.savefig(img_path + f"env_boundaries_{i}.svg", bbox_inches='tight', pad_inches=0)
 
+    # plot local map
+    plt.clf()
+    # local_map = lm_generator.adjust_track_normals(track)
 
-    # local_track = np.load(file)
-    # local_map = PlotLocalMap(local_track)
+    boundary_color = color_pallette[2]
+    plt.plot(long_side[:, 0], long_side[:, 1], '-', color=boundary_color, linewidth=2, alpha=0.8)
+    plt.plot(short_side[:, 0], short_side[:, 1], '-', color=boundary_color, label="Boundaries", linewidth=2, alpha=0.7)
 
-    # local_map.plot_local_map(img_path, i)
+    img = plt.imread("LocalMapRacing/DataTools/RacingCar.png", format='png')
+    img = rotate_bound(img, 150)
+    oi = OffsetImage(img, zoom=0.5)
+    ab = AnnotationBbox(oi, (x-3.5, y+6), xycoords='data', frameon=False)
+    plt.gca().add_artist(ab)
 
-    # plt.figure(5)
-    # plt.clf()
-    # map_data.plot_map_img()
-    # x, y = map_data.xy2rc(states[i, 0], states[i, 1])
-    # plt.plot(x, y, 'x', color='red')
+    long_side_xy, short_side_xy = lm_generator.extract_boundaries(pts, pt_distances, inds)
+    track = lm_generator.project_side_to_track(long_side_xy, -1, int(len(long_side_xy) / 2))
+    # track_long = lm_generator.project_side_to_track(long_side_xy, -1, int(len(long_side_xy) / 2))
+    # track_short = lm_generator.project_side_to_track(short_side_xy, 1, int(len(short_side_xy) / 2))
 
-    # plt.gca().axis('off')
+    #TODO: find a method to combine the two tracks
 
-    # plt.savefig(img_path + f"local_pos_{i}.svg", bbox_inches='tight', pad_inches=0)
+    # adj_lm = lm_generator.adjust_track_normals(track)
+    # track = adj_lm.track
+    track_pts = (np.matmul(rotation, track[:, :2].T).T + position - origin ) / map_data.map_resolution
+    plt.plot(track_pts[:, 0], track_pts[:, 1], '-', color=color_pallette[3], label="Centre line", linewidth=3)
 
+    #plot nvecs
+    lm = LocalMap(track)
+    l1 = lm.track[:, :2] + lm.nvecs * lm.track[:, 2][:, None]
+    l2 = lm.track[:, :2] - lm.nvecs * lm.track[:, 3][:, None]
 
-    # local_map.plot_local_map_offset(position, heading, map_data.map_origin[:2], map_data.map_resolution, full_path, i)
+    l1 = (np.matmul(rotation, l1.T).T + position - origin ) / map_data.map_resolution
+    l2 = (np.matmul(rotation, l2.T).T + position - origin ) / map_data.map_resolution
+
+    for z in range(3, len(l1)):
+        n_xs = [l1[z, 0], l2[z, 0]]
+        n_ys = [l1[z, 1], l2[z, 1]]
+        plt.plot(n_xs, n_ys, '-', color=color_pallette[1], linewidth=2)
+    
+    n_xs = [l1[2, 0], l2[2, 0]]
+    n_ys = [l1[2, 1], l2[2, 1]]
+    plt.plot(n_xs, n_ys, '-', color=color_pallette[1], linewidth=2, label="Normals")
+
+    
+    plt.gca().axis('off')
+    b = 6
+    plt.xlim([np.min(short_side[:, 0]) - b, np.max(long_side[:, 0]) + 20])
+    # plt.xlim([np.min(short_side[:, 0]) - 20, np.max(long_side[:, 0]) + 8])
+    plt.ylim([np.min(long_side[:, 1]) - b, np.max(long_side[:, 1]) + b])
+    plt.gca().set_aspect('equal')
+
+    # plt.legend(loc='center', fontsize=12, bbox_to_anchor=(0.25, 0.2))
+    plt.legend(loc='center', fontsize=12, bbox_to_anchor=(0.75, 0.9))
+    # plt.legend(loc='upper right', fontsize=12)
+
+    plt.savefig(img_path + f"local_map_{i}.svg", bbox_inches='tight', pad_inches=0)
+
 
     # plot traj
 
+    plt.clf()
+    boundary_color = 'black'
+    # boundary_color = color_pallette[2]
+    plt.plot(long_side[:, 0], long_side[:, 1], '-', color=boundary_color, linewidth=2, alpha=1)
+    plt.plot(short_side[:, 0], short_side[:, 1], '-', color=boundary_color, label="Boundaries", linewidth=2, alpha=1)
+
+    img = plt.imread("LocalMapRacing/DataTools/RacingCar.png", format='png')
+    img = rotate_bound(img, 150)
+    oi = OffsetImage(img, zoom=0.5)
+    ab = AnnotationBbox(oi, (x-3.5, y+6), xycoords='data', frameon=False)
+    plt.gca().add_artist(ab)
+
+    long_side_xy, short_side_xy = lm_generator.extract_boundaries(pts, pt_distances, inds)
+    track = lm_generator.project_side_to_track(long_side_xy, -1, int(len(long_side_xy) / 2))
+    track_pts = (np.matmul(rotation, track[:, :2].T).T + position - origin ) / map_data.map_resolution
+    plt.plot(track_pts[:, 0], track_pts[:, 1], '--', color='black', label="Centre line", linewidth=2.5)
+    # plt.plot(track_pts[:, 0], track_pts[:, 1], '-', color=color_pallette[3], label="Centre line", linewidth=2)
+
+    #plot nvecs
+    lm = LocalMap(track[2:])
+    lr = LocalRaceline("Data/LocalImgs/")
+    lr.generate_raceline(lm)
+
+    points = (np.matmul(rotation, lr.raceline.T).T + position - origin ) / map_data.map_resolution
+    points = points.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    print(lr.vs)
+    norm = plt.Normalize(2, 8)
+    lc = LineCollection(segments, cmap='jet', norm=norm)
+    lc.set_array(lr.vs)
+    lc.set_linewidth(5)
+    line = plt.gca().add_collection(lc)
+    cbar = plt.colorbar(line)
+    # cbar = plt.colorbar(line, label="Speed")
+    cbar.ax.tick_params(labelsize=15)
+    # cbar.ax.set_yticks([])
+    cbar.ax.set_yticklabels(['', "", "", "", "", "", ' '], fontsize=15)
+    # cbar.ax.set_yticklabels(['Slow', "", "", "", "", "", 'Fast'], fontsize=15)
+    plt.gca().set_aspect('equal', adjustable='box')
+
+    # plt.text(0.78, 0.25, "Slow       >>>>        Fast", fontsize=15, transform=plt.gcf().transFigure, rotation=90)
+    plt.text(0.78, 0.45, "Speed", fontsize=15, transform=plt.gcf().transFigure, rotation=90)
+
+    plt.gca().axis('off')
+    b = 6
+    plt.xlim([np.min(short_side[:, 0]) - b, np.max(long_side[:, 0]) + 16])
+    plt.ylim([np.min(long_side[:, 1]) - b, np.max(long_side[:, 1]) + b])
+    plt.gca().set_aspect('equal')
+
+    plt.legend(loc='center', fontsize=12, bbox_to_anchor=(0.75, 0.9))
+
+    plt.savefig(img_path + f"local_trajectory_{i}.svg", bbox_inches='tight', pad_inches=0)
+
+
 def rotate_bound(image, angle):
     import cv2
-    # grab the dimensions of the image and then determine the
-    # center
     (h, w) = image.shape[:2]
     (cX, cY) = (w // 2, h // 2)
 
-    # grab the rotation matrix (applying the negative of the
-    # angle to rotate clockwise), then grab the sine and cosine
-    # (i.e., the rotation components of the matrix)
     M = cv2.getRotationMatrix2D((cX, cY), -angle, 1.0)
     cos = np.abs(M[0, 0])
     sin = np.abs(M[0, 1])
 
-    # compute the new bounding dimensions of the image
     nW = int((h * sin) + (w * cos))
     nH = int((h * cos) + (w * sin))
 
-    # adjust the rotation matrix to take into account translation
     M[0, 2] += (nW / 2) - cX
     M[1, 2] += (nH / 2) - cY
 
-    # perform the actual rotation and return the image
-    return cv2.warpAffine(image, M, (nW, nH), borderValue=(255,255,255))
+    return cv2.warpAffine(image, M, (nW, nH), borderValue=(1, 1, 1))
 
 
 make_img("LocalImgs", 91)

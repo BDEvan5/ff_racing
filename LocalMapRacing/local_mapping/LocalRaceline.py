@@ -7,12 +7,19 @@ from LocalMapRacing.local_mapping.local_map_utils import *
 
 
 KAPPA_BOUND = 0.4
-VEHICLE_WIDTH = 0.8
-ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
-ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
-MU = 0.5
+# VEHICLE_WIDTH = 0.8
+# ax_max_machine = np.array([[0, 8.5],[8, 8.5]])
+# ggv = np.array([[0, 8.5, 8.5], [8, 8.5, 8.5]])
+# MU = 0.5
 V_MAX = 8
 VEHICLE_MASS = 3.4
+
+KAPPA_BOUND = 0.3
+VEHICLE_WIDTH = 0.1
+a_max = 38
+ax_max_machine = np.array([[0, a_max],[8, a_max]])
+ggv = np.array([[0, a_max, a_max], [8, a_max, a_max]])
+MU = 0.6
 
 class LocalRaceline:
     def __init__(self, path):
@@ -40,7 +47,7 @@ class LocalRaceline:
         psi = self.lm.psi - np.pi/2 # Why?????
 
         try:
-            alpha, error = tph.opt_min_curv.opt_min_curv(self.lm.track, self.lm.nvecs, M, KAPPA_BOUND, VEHICLE_WIDTH, print_debug=False, closed=False, psi_s=psi[0], psi_e=psi[-1], fix_s=True)
+            alpha, error = tph.opt_min_curv.opt_min_curv(self.lm.track, self.lm.nvecs, M, KAPPA_BOUND, VEHICLE_WIDTH, print_debug=False, closed=False, psi_s=psi[0], psi_e=psi[-1], fix_s=True, fix_e=True)
 
             raceline = self.lm.track[:, :2] + np.expand_dims(alpha, 1) * self.lm.nvecs
         except Exception as e:
@@ -59,6 +66,7 @@ class LocalRaceline:
     def generate_max_speed_profile(self, starting_speed=V_MAX):
         mu = MU * np.ones_like(self.kappa_r) 
         
+
         self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, self.el_lengths_r, False, 0, VEHICLE_MASS, ggv=ggv, mu=mu, v_max=V_MAX, v_start=starting_speed)
 
 

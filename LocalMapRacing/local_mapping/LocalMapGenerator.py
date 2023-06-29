@@ -8,7 +8,7 @@ from LocalMapRacing.local_mapping.LocalMap import LocalMap, PlotLocalMap
 
 
 DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
-TRACK_WIDTH = 1.8 # use fixed width
+TRACK_WIDTH = 1.9 # use fixed width
 POINT_SEP_DISTANCE = 1.2
 
 
