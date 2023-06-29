@@ -9,6 +9,8 @@ from LocalMapRacing.local_mapping.LocalMap import LocalMap
 from LocalMapRacing.local_mapping.LocalMapGenerator import LocalMapGenerator
 from LocalMapRacing.local_mapping.LocalRaceline import LocalRaceline
 
+from LocalMapRacing.DataTools.MapData import MapData
+
 np.set_printoptions(precision=4)
 
 
@@ -34,15 +36,32 @@ class LocalMapPP:
         self.local_raceline = LocalRaceline(self.path)
 
         self.track_line = TrackLine(map_name, False, False)
+        self.map_data = MapData(map_name)
         
     def plan(self, obs):
         self.local_map = self.local_map_generator.generate_line_local_map(obs['scans'][0])
         np.save(self.path + "ScanData/" + f"scan_{self.counter}.npy", obs['scans'][0])
-        self.local_raceline.generate_raceline(self.local_map)
+        # self.local_raceline.generate_raceline(self.local_map)
+        
+
+        plt.figure(3)
+        plt.clf()
+        self.map_data.plot_map_img()
+        x, y = self.map_data.xy2rc(obs['poses_x'][0], obs['poses_y'][0])
+        plt.plot(x, y, 'x', color='red')
+        
+        position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
+        # heading = obs['poses_theta'][0]
+        heading = obs['full_states'][0][4]
+
+        plt.title(f"Local map ({self.counter}): head: {heading:.2f}, pos: {position[0]:.2f}, {position[1]:.2f}")
+        self.local_map.plot_local_map_offset(position, heading, self.map_data.map_origin[:2], self.map_data.map_resolution, save_path=self.path + f"OnlineMaps/", counter=self.counter)
 
         action = self.pure_pursuit_center_line()
         # action, lhd = self.pure_pursuit_racing_line(obs)
 
+        # plt.pause(0.001)
+        # plt.show()
         self.vehicle_state_history.add_memory_entry(obs, action)
 
         self.counter += 1

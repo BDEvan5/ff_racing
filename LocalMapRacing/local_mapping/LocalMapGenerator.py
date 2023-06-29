@@ -25,11 +25,25 @@ class LocalMapGenerator:
         self.counter = 0
 
     def generate_line_local_map(self, scan, save=True):
-        self.counter += 1
-        xs = self.coses[scan < 10] * scan[scan < 10] #? why are long beams excluded???? Try without this.
-        ys = self.sines[scan < 10] * scan[scan < 10]
+        scan[scan>10] = 100 # to create a big jump. Should be removed...
+        
+        # scan = np.clip(scan, 0, 10)
 
-        pts, pt_distances, inds = self.extract_track_lines(xs, ys)
+        xs_f = self.coses * scan
+        ys_f = self.sines * scan
+        # xs = self.coses[scan < 10] * scan[scan < 10] #? why are long beams excluded???? Try without this.
+        # ys = self.sines[scan < 10] * scan[scan < 10]
+
+        # plt.figure(2)
+        # plt.clf()
+        # plt.plot(xs_f, ys_f, 'r.')
+        # plt.plot(xs, ys, 'k.')
+        # plt.axis('equal')
+        # plt.pause(0.001)
+        # plt.show()
+
+        # pts, pt_distances, inds = self.extract_track_lines(xs, ys)
+        pts, pt_distances, inds = self.extract_full_track_lines(xs_f, ys_f)
 
         long_side, n_pts, w = self.calculate_longest_line(pts, pt_distances, inds)
 
@@ -39,6 +53,7 @@ class LocalMapGenerator:
         local_map.plot_local_map()
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
+        self.counter += 1
 
         return local_map
 

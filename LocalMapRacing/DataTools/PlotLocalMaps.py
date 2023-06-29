@@ -26,7 +26,7 @@ def plot_local_maps(name):
     # plt.show()
 
     track_lengths = []
-    for i in range(1, 260):
+    for i in range(0, 260):
         file = map_root + f"local_map_{i}.npy"
         try:
             local_track = np.load(file)
@@ -47,11 +47,13 @@ def plot_local_maps(name):
 
         position = states[i, 0:2]
         heading = states[i, 4]
+        plt.title(f"Local map ({i}): head: {heading:.2f}, pos: {position[0]:.2f}, {position[1]:.2f}")
         local_map.plot_local_map_offset(position, heading, map_data.map_origin[:2], map_data.map_resolution, full_path, i)
 
 
 
-plot_local_maps("LocalImgs")
+plot_local_maps("LocalCenterPP")
+# plot_local_maps("LocalImgs")
 # plot_local_maps("Data/devel_local_mpcc/")
 
 

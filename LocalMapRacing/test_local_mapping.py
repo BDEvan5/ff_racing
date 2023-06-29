@@ -54,7 +54,7 @@ def test_pure_pursuit():
     n_test_laps = 1
     # test_name = "DataLocalPP"
     # test_name = "devel_local_mpcc"
-    test_name = "LocalImgs"
+    test_name = "LocalCenterPP"
     
     env = F110Env(map=map_name, num_agents=1)
     planner = LocalMapPP(test_name, map_name)
@@ -70,7 +70,7 @@ def test_pure_pursuit_all_maps():
     set_n = 1
     test_name = f"LocalPP"
     for map_name in map_names:
-        
+        # 
         env = F110Env(map=map_name, num_agents=1)
         planner = LocalMapPP(test_name, map_name)
         
