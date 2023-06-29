@@ -116,6 +116,13 @@ class MapData:
         self.map_img[0, 0] = 0
         plt.imshow(self.map_img, origin='lower', cmap='gray')
 
+    def plot_map_img_light(self):
+        self.map_img[self.map_img == 1] = 220
+        self.map_img[self.map_img == 0 ] = 255
+        self.map_img[0, 1] = 255
+        self.map_img[0, 0] = 0
+        plt.imshow(self.map_img, origin='lower', cmap='gray')
+
     def plot_map_trajectory_data(self):
         plt.figure(figsize=(10, 5))
         plt.plot(self.t_vs)

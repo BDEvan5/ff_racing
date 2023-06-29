@@ -127,7 +127,8 @@ plot_blue = "#3498DB"
 
 google = ["#008744", "#0057e7", "#d62d20", "#ffa700"]
 science_pallet = ['#0C5DA5', '#FF2C00', '#00B945', '#FF9500', '#845B97', '#474747', '#9e9e9e']
-
+science_bright = ['EE7733', '0077BB', '33BBEE', 'EE3377', 'CC3311', '009988', 'BBBBBB']
+science_bright = [f"#{c}" for c in science_bright]
 
 science_high_vis = ["#0d49fb", "#fec32d", "#e6091c", "#26eb47", "#8936df", "#25d7fd"]
 color_pallette = science_high_vis
