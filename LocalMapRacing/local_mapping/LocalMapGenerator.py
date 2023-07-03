@@ -42,21 +42,12 @@ class LocalMapGenerator:
         # plt.pause(0.001)
         # plt.show()
 
-        # pts, pt_distances, inds = self.extract_track_lines(xs, ys)
         pts, pt_distances, inds = self.extract_full_track_lines(xs_f, ys_f)
 
-
-
-        # long_side, n_pts, w = self.calculate_longest_line(pts, pt_distances, inds)
         long_side, short_side = self.extract_boundaries(pts, pt_distances, inds)
+        track = self.project_side_to_track(long_side, short_side)
 
-        track = self.project_side_to_track(long_side)
-        pt_init = np.linalg.norm(track[0, :])
-        pt_final = np.linalg.norm(track[-1, :])
-        if pt_final < pt_init: track = np.flip(track, axis=0)
-        # lm = PlotLocalMap(track)
-        # lm.plot_local_map()
-        # plt.pause(0.001)
+
         try:
             local_map = self.adjust_track_normals(track)
         except:
@@ -104,35 +95,7 @@ class LocalMapGenerator:
 
         return pts, pt_distances, inds
 
-    # def calculate_longest_line(self, pts, pt_distances, inds):
-    #     arr_inds = np.arange(len(pt_distances))[inds]
-    #     arr_inds = np.append(inds, 1080)
-    #     arr_inds = np.insert(arr_inds, 0, 0)
-
-    #     n_lines = len(arr_inds) - 1
-    #     for i in range(n_lines):
-    #         line_pts = pts[arr_inds[i]+1:arr_inds[i+1]]
-    #         line_distances = pt_distances[arr_inds[i]:arr_inds[i+1]-1]
-    #         line_length = np.sum(line_distances)
-
-    #         if i == 0:
-    #             max_length = line_length
-    #             max_line = line_pts
-    #         elif line_length > max_length:
-    #             max_length = line_length
-    #             max_line = line_pts
-
-    #     n_pts = int(max_length / POINT_SEP_DISTANCE)
-    #     print(f"{line_length:.2f}, {max_length:.2f}, {n_pts}, {w}")
-    #     print(max_line.shape)
-    #     long_side = interpolate_track(max_line, n_pts*2, 0)
-
-
-    #     return long_side, n_pts
-
-
     def extract_boundaries(self, pts, pt_distances, inds):
-        # print(inds)
         arr_inds = np.arange(len(pt_distances))[inds]
         min_ind = np.min(arr_inds) + 1
         max_ind = np.max(arr_inds) + 1
@@ -149,7 +112,6 @@ class LocalMapGenerator:
             short_length = l2_cs[-1]
         else:
             long_pts = pts[max_ind:]
-            # long_pts = long_pts[::-1]
             long_length = l2_cs[-1]
 
             short_pts = pts[:min_ind]
@@ -163,13 +125,42 @@ class LocalMapGenerator:
 
         return long_side, short_side
 
-    def project_side_to_track(self, side):
-        side_lm = LocalMap(side)
-        center_line = side + side_lm.nvecs * TRACK_WIDTH / 2
-        center_line = center_line[center_line[:, 0] > 0] # remove points behind the car
-        n_pts = int(side.shape[0] / 2)
-        center_line = interpolate_track(center_line, n_pts, 1)
+    def project_side_to_track(self, long_side, short_side):
+        sides = [long_side, short_side]
+        c_lines = []
+        plt.figure(1)
+        plt.clf()
+        for side in sides:
+            side_lm = LocalMap(side)
+            center_line = side + side_lm.nvecs * TRACK_WIDTH / 2
+            n_pts = int(side.shape[0] / 2)
+            center_line = interpolate_track(center_line, n_pts, 1)
 
+            pt_init = np.linalg.norm(center_line[0, :])
+            pt_final = np.linalg.norm(center_line[-1, :])
+            if pt_final < pt_init: center_line = np.flip(center_line, axis=0)
+
+            c_lm = LocalMap(center_line) # do not need this object
+            s, d = c_lm.calculate_s([0, 0])
+            center_line = interpolate_positive_track(center_line, n_pts, s, 1)
+            c_lm_adjusted = LocalMap(center_line)
+
+            c_lines.append(c_lm_adjusted)
+            s, d = c_lm_adjusted.calculate_s([0, 0])
+            print(f"Projected point: s: {s}, d: {d}")
+
+
+
+        plt.plot(long_side[:, 0], long_side[:, 1], 'r.')
+        plt.plot(short_side[:, 0], short_side[:, 1], 'b.')
+        plt.plot(c_lines[0].track[:, 0], c_lines[0].track[:, 1], 'r.')
+        plt.plot(c_lines[1].track[:, 0], c_lines[1].track[:, 1], 'b.')
+
+        plt.axis('equal')
+        plt.show()
+
+
+        center_line = center_line[center_line[:, 0] > 0] # remove points behind the car
         ws = np.ones_like(center_line) * TRACK_WIDTH / 2
         track = np.concatenate((center_line, ws), axis=1)
 

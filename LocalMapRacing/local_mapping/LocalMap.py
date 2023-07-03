@@ -20,7 +20,36 @@ class LocalMap:
         self.psi, self.kappa = tph.calc_head_curv_num.calc_head_curv_num(self.track, self.el_lengths, False)
         self.nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(self.psi-np.pi/2)
 
+    def calculate_s(self, point):
+        distances = np.linalg.norm(self.track[:, 0:2] - point, axis=1)
+        idx = np.argmin(distances)
+        x, h = self.interp_pts(idx, distances)
+        s = (self.s_track[idx] + x) 
 
+        return s, h
+
+    def interp_pts(self, idx, dists):
+        d_ss = self.s_track[idx+1] - self.s_track[idx]
+        d1, d2 = dists[idx], dists[idx+1]
+
+        if d1 < 0.01: # at the first point
+            x = 0   
+            h = 0
+        elif d2 < 0.01: # at the second point
+            x = dists[idx] # the distance to the previous point
+            h = 0 # there is no distance
+        else:     # if the point is somewhere along the line
+            s = (d_ss + d1 + d2)/2
+            Area_square = (s*(s-d1)*(s-d2)*(s-d_ss))
+            if Area_square < 0:  # negative due to floating point precision
+                h = 0
+                x = d_ss + d1
+            else:
+                Area = Area_square**0.5
+                h = Area * 2/d_ss
+                x = (d1**2 - h**2)**0.5
+
+        return x, h
 
 class PlotLocalMap(LocalMap):
     def __init__(self, track):

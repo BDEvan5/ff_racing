@@ -25,3 +25,15 @@ def interpolate_track(points, n_points, s=10):
     new_points = np.hstack((xs[:, None], ys[:, None]))
 
     return new_points
+
+def interpolate_positive_track(points, n_points, s_init, s=10):
+    el = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    cs = np.insert(np.cumsum(el), 0, 0)
+    ss = np.linspace(s_init, cs[-1], n_points)
+    tck_x = splrep(cs, points[:, 0], s=s, k=min(3, len(points)-1))
+    tck_y = splrep(cs, points[:, 1], s=s, k=min(3, len(points)-1))
+    xs = BSpline(*tck_x)(ss) # get unispaced points
+    ys = BSpline(*tck_y)(ss)
+    new_points = np.hstack((xs[:, None], ys[:, None]))
+
+    return new_points
