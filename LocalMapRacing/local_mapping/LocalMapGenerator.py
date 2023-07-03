@@ -13,14 +13,14 @@ POINT_SEP_DISTANCE = 1.2
 
 
 class LocalMapGenerator:
-    def __init__(self, path) -> None:
+    def __init__(self, path, map_name) -> None:
         fov2 = 4.7 / 2
         self.angles = np.linspace(-fov2, fov2, 1080)
         self.coses = np.cos(self.angles)
         self.sines = np.sin(self.angles)
         self.xs, self.ys = None, None 
 
-        self.local_map_data_path = path + "LocalMapData/"
+        self.local_map_data_path = path + f"LocalMapData_{map_name.upper()}/"
         ensure_path_exists(self.local_map_data_path)
         self.counter = 0
 

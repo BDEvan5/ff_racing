@@ -20,6 +20,7 @@ MAX_STEER = 0.4
 MAX_SPEED = 8
 
 VERBOSE = False
+VERBOSE = True
 
 class LocalMapPP:
     def __init__(self, test_name, map_name):
@@ -27,13 +28,16 @@ class LocalMapPP:
         self.path = f"Data/{test_name}/"
         
         ensure_path_exists(self.path)
-        ensure_path_exists(self.path + "ScanData/")
-        ensure_path_exists(self.path + "OnlineMaps/")
+        if VERBOSE:
+            self.scan_data_path = self.path + f"ScanData_{map_name.upper()}/"
+            ensure_path_exists(self.scan_data_path)
+            self.online_lm_path = self.path + f"OnlineMaps_{map_name.upper()}/"
+            ensure_path_exists(self.online_lm_path)
 
         self.vehicle_state_history = VehicleStateHistory(test_name, map_name)
         self.counter = 0
                 
-        self.local_map_generator = LocalMapGenerator(self.path)
+        self.local_map_generator = LocalMapGenerator(self.path, map_name)
         self.local_map = None # LocalMap(self.path)
         self.local_raceline = LocalRaceline(self.path)
 
@@ -46,7 +50,6 @@ class LocalMapPP:
         
     def plan(self, obs):
         self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
-        np.save(self.path + "ScanData/" + f"scan_{self.counter}.npy", obs['scans'][0])
         # self.local_raceline.generate_raceline(self.local_map)
         
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
@@ -58,6 +61,8 @@ class LocalMapPP:
         pts = calculate_offset_coords(pts, position, heading)
 
         if VERBOSE:
+            np.save(self.scan_data_path + f"scan_{self.counter}.npy", obs['scans'][0])
+
             plt.figure(3)
             plt.clf()
             self.map_data.plot_map_img()
@@ -66,10 +71,9 @@ class LocalMapPP:
 
             scan_xs, scan_ys = self.map_data.pts2rc(pts)
             plt.plot(scan_xs, scan_ys, '.', color='blue')
-            
 
             plt.title(f"Local map ({self.counter}): head: {heading:.2f}, pos: {position[0]:.2f}, {position[1]:.2f}")
-            self.local_map.plot_local_map_offset(position, heading, self.map_data.map_origin[:2], self.map_data.map_resolution, save_path=self.path + f"OnlineMaps/", counter=self.counter)
+            self.local_map.plot_local_map_offset(position, heading, self.map_data.map_origin[:2], self.map_data.map_resolution, save_path=self.online_lm_path, counter=self.counter)
 
         action = self.pure_pursuit_center_line()
         # action, lhd = self.pure_pursuit_racing_line(obs)
