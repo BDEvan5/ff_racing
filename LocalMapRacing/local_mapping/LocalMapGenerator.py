@@ -32,7 +32,9 @@ class LocalMapGenerator:
         long_side, short_side = self.extract_boundaries(pts, pt_distances, inds)
         track = self.project_side_to_track(long_side)
 
-        local_map = self.adjust_track_normals(track)
+        lm = PlotLocalMap(track)
+        # lm = LocalMap(track)
+        local_map = self.adjust_track_normals(lm)
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
         self.counter += 1
@@ -100,10 +102,7 @@ class LocalMapGenerator:
 
         return track
 
-    def adjust_track_normals(self, track):
-        # lm = PlotLocalMap(track)
-        lm = LocalMap(track)
-
+    def adjust_track_normals(self, lm):
         crossing_horizon = min(5, len(lm.track)//2 -1)
         i = 0
         while i < 20 and tph.check_normals_crossing.check_normals_crossing(lm.track, lm.nvecs, crossing_horizon):

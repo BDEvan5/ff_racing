@@ -20,7 +20,7 @@ MAX_STEER = 0.4
 MAX_SPEED = 8
 
 VERBOSE = False
-# VERBOSE = True
+VERBOSE = True
 
 class LocalMapPP:
     def __init__(self, test_name, map_name):
