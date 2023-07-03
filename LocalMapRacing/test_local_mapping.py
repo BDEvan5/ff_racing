@@ -66,11 +66,11 @@ def test_pure_pursuit():
   
 
 def test_pure_pursuit_all_maps():
-    # map_names = ["aut", "esp", "gbr", "mco"]
-    map_names = ["gbr"]
+    map_names = ["aut", "esp", "gbr", "mco"]
+    # map_names = ["aut"]
     n_test_laps = 1
     
-    set_n = 2
+    set_n = 3
     # test_name = f"LocalPP"
     test_name = f"LocalCenterPP_{set_n}"
     for map_name in map_names:
