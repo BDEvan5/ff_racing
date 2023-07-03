@@ -74,6 +74,8 @@ class PlotLocalMap(LocalMap):
         track = track + offset_pos
         track = (track - origin) / resolution
 
+        position = (offset_pos - origin) / resolution
+
         # plt.figure(1)
         # plt.clf()
         plt.plot(track[:, 0], track[:, 1], '-', color='#E74C3C', label="Center", linewidth=3)
@@ -82,6 +84,11 @@ class PlotLocalMap(LocalMap):
         plt.plot(l2[:, 0], l2[:, 1], color='#ffa700')
 
         plt.gca().set_aspect('equal', adjustable='box')
+
+        buffer = 50
+
+        plt.xlim([np.min(track[:, 0]) - buffer, np.max(track[:, 0]) + buffer])
+        plt.ylim([np.min(track[:, 1]) - buffer, np.max(track[:, 1]) + buffer])
 
         if save_path is not None:
             plt.savefig(save_path + f"Local_map_{counter}.svg")

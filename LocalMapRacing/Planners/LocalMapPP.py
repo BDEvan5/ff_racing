@@ -20,7 +20,7 @@ MAX_STEER = 0.4
 MAX_SPEED = 8
 
 VERBOSE = False
-VERBOSE = True
+# VERBOSE = True
 
 class LocalMapPP:
     def __init__(self, test_name, map_name):
@@ -28,11 +28,11 @@ class LocalMapPP:
         self.path = f"Data/{test_name}/"
         
         ensure_path_exists(self.path)
-        if VERBOSE:
-            self.scan_data_path = self.path + f"ScanData_{map_name.upper()}/"
-            ensure_path_exists(self.scan_data_path)
-            self.online_lm_path = self.path + f"OnlineMaps_{map_name.upper()}/"
-            ensure_path_exists(self.online_lm_path)
+        # if VERBOSE:
+        self.scan_data_path = self.path + f"ScanData_{map_name.upper()}/"
+        ensure_path_exists(self.scan_data_path)
+        self.online_lm_path = self.path + f"OnlineMaps_{map_name.upper()}/"
+        ensure_path_exists(self.online_lm_path)
 
         self.vehicle_state_history = VehicleStateHistory(test_name, map_name)
         self.counter = 0
@@ -60,7 +60,7 @@ class LocalMapPP:
         pts = np.stack((scan_xs, scan_ys), axis=1)
         pts = calculate_offset_coords(pts, position, heading)
 
-        if VERBOSE:
+        if VERBOSE or self.counter > 230:
             np.save(self.scan_data_path + f"scan_{self.counter}.npy", obs['scans'][0])
 
             plt.figure(3)
@@ -93,6 +93,8 @@ class LocalMapPP:
 
         lookahead = min(lookahead, self.local_map.s_track[-1]) 
         lookahead_point = interp_2d_points(lookahead, self.local_map.s_track, self.local_map.track[:, 0:2])
+
+        print(f"Lookahead: {lookahead}, Lookahead point: {lookahead_point}: Current progress: {current_progress}")
 
         steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)

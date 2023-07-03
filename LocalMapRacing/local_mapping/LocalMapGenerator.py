@@ -7,7 +7,7 @@ from LocalMapRacing.local_mapping.local_map_utils import *
 from LocalMapRacing.local_mapping.LocalMap import LocalMap, PlotLocalMap
 
 
-DISTNACE_THRESHOLD = 1.6 # distance in m for an exception
+DISTNACE_THRESHOLD = 1.4 # distance in m for an exception
 TRACK_WIDTH = 1.9 # use fixed width
 POINT_SEP_DISTANCE = 1.2
 
@@ -50,6 +50,9 @@ class LocalMapGenerator:
         long_side, n_pts, w = self.calculate_longest_line(pts, pt_distances, inds)
 
         track = self.project_side_to_track(long_side, w, n_pts)
+        pt_init = np.linalg.norm(track[0, :])
+        pt_final = np.linalg.norm(track[-1, :])
+        if pt_final < pt_init: track = np.flip(track, axis=0)
         # lm = PlotLocalMap(track)
         # lm.plot_local_map()
         # plt.pause(0.001)
@@ -85,11 +88,14 @@ class LocalMapGenerator:
         return pts, pt_distances, inds
     
     def extract_full_track_lines(self, xs, ys):
+
         pts = np.hstack((xs[:, None], ys[:, None]))
+        pts = pts[pts[:, 0] > -2] # remove points behind the car
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
-        inds = np.where(pt_distances > DISTNACE_THRESHOLD)
-        inds = np.delete(inds, np.where(inds == 0)) 
-        inds = np.delete(inds, np.where(inds >= 1078)) 
+        inds = np.array(np.where(pt_distances > DISTNACE_THRESHOLD))
+        exclusion_zone = 2
+        inds = np.delete(inds, np.where(inds <= exclusion_zone)) 
+        inds = np.delete(inds, np.where(inds >= 1080-exclusion_zone)) 
 
         if len(inds) == 0:
             raise IOError("Problem with full scan, no gaps found")
@@ -97,7 +103,37 @@ class LocalMapGenerator:
         return pts, pt_distances, inds
 
     def calculate_longest_line(self, pts, pt_distances, inds):
+        print(inds)
         arr_inds = np.arange(len(pt_distances))[inds]
+        arr_inds = np.append(inds, 1080)
+        arr_inds = np.insert(arr_inds, 0, 0)
+
+        n_lines = len(arr_inds) - 1
+        for i in range(n_lines):
+            line_pts = pts[arr_inds[i]+1:arr_inds[i+1]]
+            line_distances = pt_distances[arr_inds[i]:arr_inds[i+1]]
+            line_length = np.sum(line_distances)
+
+            if i == 0:
+                max_length = line_length
+                max_line = line_pts
+                w = 1 # first line is always 1
+            elif line_length > max_length:
+                max_length = line_length
+                max_line = line_pts
+                # if arr_inds[i+1] > 700:
+                #     w = 1
+                #     line_pts = np.flip(line_pts, axis=0)
+
+
+
+        n_pts = int(max_length / POINT_SEP_DISTANCE)
+        long_side = interpolate_track(max_line, n_pts*2, 0)
+
+        print(f"{line_length:.2f}, {max_length:.2f}, {n_pts}, {w}")
+
+        return long_side, n_pts, w
+
         min_ind = np.min(arr_inds) + 1
         max_ind = np.max(arr_inds) + 1
 

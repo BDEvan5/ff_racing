@@ -51,7 +51,7 @@ def render_callback(env_renderer):
 
 def test_pure_pursuit():
     map_name = "aut" # "aut", "esp", "gbr", "mco"
-    # map_name = "esp" # "aut", "esp", "gbr", "mco"
+    map_name = "esp" # "aut", "esp", "gbr", "mco"
     n_test_laps = 1
     set_n = 1
     # test_name = "DataLocalPP"
