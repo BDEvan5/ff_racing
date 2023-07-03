@@ -19,21 +19,17 @@ def plot_local_maps(name):
     history = np.load(path + "TestingAUT/" + f"Lap_0_history_{name}.npy")
     states = history[:, 0:7]
     actions = history[:, 7:9]
+    print(states.shape)
 
     map_data = MapData(map_name)
 
-    # plt.plot(states[:, 4])
-    # plt.show()
-
-    track_lengths = []
-    for i in range(0, 260):
+    for i in range(0, 500):
         file = map_root + f"local_map_{i}.npy"
+        print(f"Local Map: {i}")
         try:
             local_track = np.load(file)
         except: break
         local_map = PlotLocalMap(local_track)
-
-        local_map.plot_local_map(lm_path, i)
 
         plt.figure(5)
         plt.clf()
@@ -42,8 +38,6 @@ def plot_local_maps(name):
         plt.plot(x, y, 'x', color='red')
 
         plt.gca().axis('off')
-
-        plt.savefig(pos_path + f"local_pos_{i}.svg", bbox_inches='tight', pad_inches=0)
 
         position = states[i, 0:2]
         heading = states[i, 4]

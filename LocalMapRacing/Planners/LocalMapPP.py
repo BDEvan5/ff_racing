@@ -19,6 +19,7 @@ WHEELBASE = 0.33
 MAX_STEER = 0.4
 MAX_SPEED = 8
 
+VERBOSE = False
 
 class LocalMapPP:
     def __init__(self, test_name, map_name):
@@ -27,6 +28,7 @@ class LocalMapPP:
         
         ensure_path_exists(self.path)
         ensure_path_exists(self.path + "ScanData/")
+        ensure_path_exists(self.path + "OnlineMaps/")
 
         self.vehicle_state_history = VehicleStateHistory(test_name, map_name)
         self.counter = 0
@@ -37,25 +39,37 @@ class LocalMapPP:
 
         self.track_line = TrackLine(map_name, False, False)
         self.map_data = MapData(map_name)
+
+        angles = np.linspace(-4.7/2, 4.7/2, 1080)
+        self.coses = np.cos(angles)
+        self.sines = np.sin(angles)
         
     def plan(self, obs):
-        self.local_map = self.local_map_generator.generate_line_local_map(obs['scans'][0])
+        self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
         np.save(self.path + "ScanData/" + f"scan_{self.counter}.npy", obs['scans'][0])
         # self.local_raceline.generate_raceline(self.local_map)
         
-
-        plt.figure(3)
-        plt.clf()
-        self.map_data.plot_map_img()
-        x, y = self.map_data.xy2rc(obs['poses_x'][0], obs['poses_y'][0])
-        plt.plot(x, y, 'x', color='red')
-        
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
-        # heading = obs['poses_theta'][0]
         heading = obs['full_states'][0][4]
+        scan_xs = obs['scans'][0] * self.coses
+        scan_ys = obs['scans'][0] * self.sines
 
-        plt.title(f"Local map ({self.counter}): head: {heading:.2f}, pos: {position[0]:.2f}, {position[1]:.2f}")
-        self.local_map.plot_local_map_offset(position, heading, self.map_data.map_origin[:2], self.map_data.map_resolution, save_path=self.path + f"OnlineMaps/", counter=self.counter)
+        pts = np.stack((scan_xs, scan_ys), axis=1)
+        pts = calculate_offset_coords(pts, position, heading)
+
+        if VERBOSE:
+            plt.figure(3)
+            plt.clf()
+            self.map_data.plot_map_img()
+            x, y = self.map_data.xy2rc(obs['poses_x'][0], obs['poses_y'][0])
+            plt.plot(x, y, 'x', color='red')
+
+            scan_xs, scan_ys = self.map_data.pts2rc(pts)
+            plt.plot(scan_xs, scan_ys, '.', color='blue')
+            
+
+            plt.title(f"Local map ({self.counter}): head: {heading:.2f}, pos: {position[0]:.2f}, {position[1]:.2f}")
+            self.local_map.plot_local_map_offset(position, heading, self.map_data.map_origin[:2], self.map_data.map_resolution, save_path=self.path + f"OnlineMaps/", counter=self.counter)
 
         action = self.pure_pursuit_center_line()
         # action, lhd = self.pure_pursuit_racing_line(obs)
@@ -63,6 +77,8 @@ class LocalMapPP:
         # plt.pause(0.001)
         # plt.show()
         self.vehicle_state_history.add_memory_entry(obs, action)
+
+        print(f"{self.counter} --> Action: {action}")
 
         self.counter += 1
         return action
@@ -107,6 +123,16 @@ class LocalMapPP:
         print(f"Lap complete ({self.track_line.map_name.upper()}) --> Time: {final_obs['lap_times'][0]:.2f}, Progress: {progress:.1f}%")
         
      
+    
+# @njit(cache=True)
+def calculate_offset_coords(pts, position, heading):
+    rotation = np.array([[np.cos(heading), -np.sin(heading)],
+                        [np.sin(heading), np.cos(heading)]])
+        
+    new_pts = np.matmul(rotation, pts.T).T + position
+
+    return new_pts
+
 @njit(cache=True)
 def calculate_speed(delta, f_s=0.8, max_v=7):
     b = 0.523

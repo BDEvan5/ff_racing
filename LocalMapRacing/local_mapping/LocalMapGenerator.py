@@ -25,7 +25,7 @@ class LocalMapGenerator:
         self.counter = 0
 
     def generate_line_local_map(self, scan, save=True):
-        scan[scan>10] = 100 # to create a big jump. Should be removed...
+        # scan[scan>10] = 100 # to create a big jump. Should be removed...
         
         # scan = np.clip(scan, 0, 10)
 
@@ -45,12 +45,20 @@ class LocalMapGenerator:
         # pts, pt_distances, inds = self.extract_track_lines(xs, ys)
         pts, pt_distances, inds = self.extract_full_track_lines(xs_f, ys_f)
 
+
+
         long_side, n_pts, w = self.calculate_longest_line(pts, pt_distances, inds)
 
         track = self.project_side_to_track(long_side, w, n_pts)
-        local_map = self.adjust_track_normals(track)
+        # lm = PlotLocalMap(track)
+        # lm.plot_local_map()
+        # plt.pause(0.001)
+        try:
+            local_map = self.adjust_track_normals(track)
+        except:
+            local_map = LocalMap(track)
 
-        local_map.plot_local_map()
+        # local_map.plot_local_map()
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
         self.counter += 1
@@ -80,7 +88,8 @@ class LocalMapGenerator:
         pts = np.hstack((xs[:, None], ys[:, None]))
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
         inds = np.where(pt_distances > DISTNACE_THRESHOLD)
-        inds = np.delete(inds, np.where(inds[0] == 0)) 
+        inds = np.delete(inds, np.where(inds == 0)) 
+        inds = np.delete(inds, np.where(inds >= 1078)) 
 
         if len(inds) == 0:
             raise IOError("Problem with full scan, no gaps found")
