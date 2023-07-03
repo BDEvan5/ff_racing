@@ -111,7 +111,7 @@ class LocalMapGenerator:
         n_lines = len(arr_inds) - 1
         for i in range(n_lines):
             line_pts = pts[arr_inds[i]+1:arr_inds[i+1]]
-            line_distances = pt_distances[arr_inds[i]:arr_inds[i+1]]
+            line_distances = pt_distances[arr_inds[i]:arr_inds[i+1]-1]
             line_length = np.sum(line_distances)
 
             if i == 0:
@@ -128,9 +128,10 @@ class LocalMapGenerator:
 
 
         n_pts = int(max_length / POINT_SEP_DISTANCE)
+        print(f"{line_length:.2f}, {max_length:.2f}, {n_pts}, {w}")
+        print(max_line.shape)
         long_side = interpolate_track(max_line, n_pts*2, 0)
 
-        print(f"{line_length:.2f}, {max_length:.2f}, {n_pts}, {w}")
 
         return long_side, n_pts, w
 

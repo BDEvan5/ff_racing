@@ -67,12 +67,12 @@ def test_pure_pursuit():
 
 def test_pure_pursuit_all_maps():
     # map_names = ["aut", "esp", "gbr", "mco"]
-    map_names = ["gbr", "mco"]
+    map_names = ["gbr"]
     n_test_laps = 1
     
-    set_n = 1
+    set_n = 2
     # test_name = f"LocalPP"
-    test_name = "LocalCenterErrorPP"
+    test_name = f"LocalCenterPP_{set_n}"
     for map_name in map_names:
         # 
         env = F110Env(map=map_name, num_agents=1)
@@ -97,8 +97,8 @@ def test_mpcc_all_maps():
   
 
 if __name__ == "__main__":
-    test_pure_pursuit()
-    # test_pure_pursuit_all_maps()
+    # test_pure_pursuit()
+    test_pure_pursuit_all_maps()
     # test_mpcc_all_maps()
 
 
