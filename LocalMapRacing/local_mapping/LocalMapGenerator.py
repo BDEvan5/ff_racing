@@ -44,6 +44,7 @@ class LocalMapGenerator:
     def extract_track_lines(self, xs, ys):
         pts = np.hstack((xs[:, None], ys[:, None]))
         pts = pts[pts[:, 0] > -2] # remove points behind the car
+        pts = pts[np.logical_or(pts[:, 0] > 0, np.abs(pts[:, 1]) < 2)] # remove points behind the car or too far away
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
         inds = np.array(np.where(pt_distances > DISTNACE_THRESHOLD))
         exclusion_zone = 2
@@ -92,11 +93,12 @@ class LocalMapGenerator:
         n_pts = int(side.shape[0] / 2)
         center_line = interpolate_track(center_line, n_pts, 1)
 
+        center_line = center_line[center_line[:, 0] > 0] # remove points behind the car
+
         pt_init = np.linalg.norm(center_line[0, :])
         pt_final = np.linalg.norm(center_line[-1, :])
         if pt_final < pt_init: center_line = np.flip(center_line, axis=0)
 
-        center_line = center_line[center_line[:, 0] > 0] # remove points behind the car
         ws = np.ones_like(center_line) * TRACK_WIDTH / 2
         track = np.concatenate((center_line, ws), axis=1)
 

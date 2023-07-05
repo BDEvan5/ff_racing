@@ -70,9 +70,10 @@ def test_pure_pursuit_all_maps():
     # map_names = ["aut"]
     n_test_laps = 1
     
-    set_n = 3
+    set_n = 1
     # test_name = f"LocalPP"
-    test_name = f"LocalCenterPP_{set_n}"
+    # test_name = f"LocalCenterPP_{set_n}"
+    test_name = f"LocalRacePP_{set_n}"
     for map_name in map_names:
         # 
         env = F110Env(map=map_name, num_agents=1)

@@ -107,7 +107,8 @@ class PlotLocalMap(LocalMap):
 
         # plt.figure(1)
         # plt.clf()
-        plt.plot(track[:, 0], track[:, 1], '-', color='#E74C3C', label="Center", linewidth=3)
+        plt.plot(track[:, 0], track[:, 1], '--', color='#E74C3C', label="Center", linewidth=2)
+        plt.plot(track[0, 0], track[0, 1], '*', color='#E74C3C', markersize=10)
 
         plt.plot(l1[:, 0], l1[:, 1], color='#ffa700')
         plt.plot(l2[:, 0], l2[:, 1], color='#ffa700')
