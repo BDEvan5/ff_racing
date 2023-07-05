@@ -54,14 +54,15 @@ def test_single_map():
     # map_name = "esp" # "aut", "esp", "gbr", "mco"
     n_test_laps = 1
     set_n = 1
+    test_name = f"LocalRacePP_{set_n}"
     # test_name = "DataLocalPP"
     # test_name = "devel_local_mpcc"
-    test_name = f"LocalMPCC_{set_n}"
+    # test_name = f"LocalMPCC_{set_n}"
     # test_name = f"LocalCenterPP_{set_n}"
     
     env = F110Env(map=map_name, num_agents=1)
-    # planner = LocalMapPP(test_name, map_name)
-    planner = LocalMPCC(map_name, test_name)
+    planner = LocalMapPP(test_name, map_name)
+    # planner = LocalMPCC(map_name, test_name)
     
     run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
@@ -98,11 +99,25 @@ def test_mpcc_all_maps():
         run_simulation_loop_laps(env, planner, n_test_laps, 10)
         F110Env.renderer = None
   
+def run_profiling(function, name):
+    import cProfile, pstats, io
+    pr = cProfile.Profile()
+    pr.enable()
+    function()
+    pr.disable()
+    s = io.StringIO()
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    with open(f"Data/profile_{name}.txt", "w") as f:
+        ps.print_stats()
+        f.write(s.getvalue())
+
 
 if __name__ == "__main__":
+    run_profiling(test_single_map, "LocalAUT")
     # test_single_map()
     # test_pure_pursuit_all_maps()
-    test_mpcc_all_maps()
+    # test_mpcc_all_maps()
 
 
 

@@ -92,10 +92,11 @@ class AnalyseTestLapData:
         pts = self.states[:, 0:2]
         ss = np.linalg.norm(np.diff(pts, axis=0), axis=1)
         total_distance = np.sum(ss)
-        if self.map_name == "esp":
-            breakpoint
 
-        time = len(pts) /10
+        if len(pts) > 1200:
+            time = len(pts) /100
+        else:
+            time = len(pts) / 10
         vs = self.states[:, 3]
         avg_velocity = np.mean(vs)
 

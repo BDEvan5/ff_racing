@@ -49,7 +49,7 @@ class LocalMapPP:
         self.sines = np.sin(angles)
         
     def plan(self, obs):
-        if self.counter > 50:
+        if self.counter % 50 == 0:
             print(f"Counter: {self.counter}")
 
         self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
