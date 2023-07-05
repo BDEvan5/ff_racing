@@ -81,7 +81,7 @@ class LocalMPCC:
         # self.init_objective()
         # self.init_solver()
         
-        self.local_map_generator = LocalMapGenerator(self.path)
+        self.local_map_generator = LocalMapGenerator(self.path, map_name)
         self.local_map = None
 
     def init_optimisation(self):

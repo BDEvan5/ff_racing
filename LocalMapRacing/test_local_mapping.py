@@ -49,18 +49,19 @@ def render_callback(env_renderer):
 
 
 
-def test_pure_pursuit():
+def test_single_map():
     map_name = "aut" # "aut", "esp", "gbr", "mco"
-    map_name = "esp" # "aut", "esp", "gbr", "mco"
+    # map_name = "esp" # "aut", "esp", "gbr", "mco"
     n_test_laps = 1
     set_n = 1
     # test_name = "DataLocalPP"
     # test_name = "devel_local_mpcc"
-    test_name = f"LocalCenterPP_{set_n}"
+    test_name = f"LocalMPCC_{set_n}"
+    # test_name = f"LocalCenterPP_{set_n}"
     
     env = F110Env(map=map_name, num_agents=1)
-    planner = LocalMapPP(test_name, map_name)
-    # planner = LocalMPCC(map_name, test_name)
+    # planner = LocalMapPP(test_name, map_name)
+    planner = LocalMPCC(map_name, test_name)
     
     run_simulation_loop_laps(env, planner, n_test_laps, 10)
   
@@ -84,10 +85,11 @@ def test_pure_pursuit_all_maps():
 
 def test_mpcc_all_maps():
     map_names = ["aut", "esp", "gbr", "mco"]
+    map_names = ["esp", "gbr", "mco"]
     n_test_laps = 1
     
     set_n = 1
-    test_name = f"GlobalMPCC"
+    test_name = f"LocalMPCC_{set_n}"
     for map_name in map_names:
         
         env = F110Env(map=map_name, num_agents=1)
@@ -98,9 +100,9 @@ def test_mpcc_all_maps():
   
 
 if __name__ == "__main__":
-    # test_pure_pursuit()
-    test_pure_pursuit_all_maps()
-    # test_mpcc_all_maps()
+    # test_single_map()
+    # test_pure_pursuit_all_maps()
+    test_mpcc_all_maps()
 
 
 
