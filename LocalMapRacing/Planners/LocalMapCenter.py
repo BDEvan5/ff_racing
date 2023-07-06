@@ -33,6 +33,8 @@ class LocalMapCenter:
         ensure_path_exists(self.scan_data_path)
         self.online_lm_path = self.path + f"OnlineMaps_{map_name.upper()}/"
         ensure_path_exists(self.online_lm_path)
+        self.lm_smooth_path = self.path + f"SmoothMaps_{map_name.upper()}/"
+        ensure_path_exists(self.lm_smooth_path)
 
         self.vehicle_state_history = VehicleStateHistory(test_name, map_name)
         self.counter = 0
@@ -52,7 +54,7 @@ class LocalMapCenter:
             print(f"Counter: {self.counter}")
 
         self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
-        self.local_map.apply_required_smoothing()
+        self.local_map.apply_required_smoothing(self.counter, self.lm_smooth_path)
         
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
         heading = obs['full_states'][0][4]
@@ -61,8 +63,8 @@ class LocalMapCenter:
 
         self.vehicle_state_history.add_memory_entry(obs, action)
 
-        if VERBOSE:
-        # if self.counter > 50:
+        # if VERBOSE:
+        if self.counter > 50 and self.counter < 150:
             np.save(self.scan_data_path + f"scan_{self.counter}.npy", obs['scans'][0])
 
             plt.figure(3)
