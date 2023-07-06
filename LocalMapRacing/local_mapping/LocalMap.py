@@ -1,7 +1,11 @@
 import numpy as np
 import LocalMapRacing.tph_utils as tph
 import matplotlib.pyplot as plt
+from LocalMapRacing.local_mapping.local_map_utils import *
 
+from scipy import interpolate
+from scipy import optimize
+from scipy import spatial
 
 class LocalMap:
     def __init__(self, track):
@@ -50,6 +54,168 @@ class LocalMap:
                 x = (d1**2 - h**2)**0.5
 
         return x, h
+    
+    def apply_required_smoothing(self):
+        
+        old_track = np.copy(self.track)
+        old_nvecs = np.copy(self.nvecs)
+
+        crossing_horizon = min(5, len(self.track)//2 -1)
+
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
+        if not crossing: return
+
+        print("Smoothing track....")
+
+        # extend track in direction of last normal vector
+        # nvec_forward = self.nvecs[-1][::-1]
+        # nvec_forward[1] = - nvec_forward[1]
+        # s = 0.8
+        # extended_track = np.copy(self.track)
+        # for i in range(1, 5):
+        #     new_pt = np.copy(self.track[-1])
+        #     new_pt[:2] = new_pt[:2] + nvec_forward * s * i
+        #     extended_track = np.append(extended_track, new_pt.reshape(1, -1), axis=0)
+
+
+
+        # el_lengths = np.linalg.norm(np.diff(extended_track[:, :2], axis=0), axis=1)
+        # s_track = np.insert(np.cumsum(el_lengths), 0, 0)
+        # psi, kappa = tph.calc_head_curv_num.calc_head_curv_num(extended_track, el_lengths, False)
+        # nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi-np.pi/2)
+
+
+        # old_track = np.copy(extended_track)
+        # old_nvecs = np.copy(nvecs)
+
+        plt.figure(2)
+        plt.clf()
+        # plt.plot(extended_track[:, 0], extended_track[:, 1], 'r', linewidth=2)
+        # l1 = extended_track[:, :2] + extended_track[:, 2][:, None] * nvecs
+        # l2 = extended_track[:, :2] - extended_track[:, 3][:, None] * nvecs
+        # plt.plot(l1[:, 0], l1[:, 1], 'r', linestyle='--', linewidth=1)
+        # plt.plot(l2[:, 0], l2[:, 1], 'r', linestyle='--', linewidth=1)
+        # for i in range(len(extended_track)):
+        #     xs = [l1[i, 0], l2[i, 0]]
+        #     ys = [l1[i, 1], l2[i, 1]]
+        #     plt.plot(xs, ys, color='orange', linewidth=1)
+
+        # plt.axis('equal')
+        # plt.show()
+
+        s_track = self.s_track
+        extended_track = self.track
+
+        plt.plot(extended_track[:, 0], extended_track[:, 1], 'r', linewidth=2)
+        
+        new_s = np.linspace(0, s_track[-1], len(extended_track)*4)
+        track_interp = interp_nd_points(new_s, s_track, extended_track)
+        no_points_track = len(self.track)
+
+        print(self.track[-1, :2])
+        print(track_interp[-1, :2])
+
+        plt.plot(track_interp[:, 0], track_interp[:, 1], 'b', linewidth=2)
+        
+        plt.axis('equal')
+        plt.show()
+        
+        i = 0
+        while i < 20 and crossing:
+            i += 1
+            smoothing = i 
+            print("Smoothing: ", smoothing)
+            ws = np.ones(len(track_interp))
+            ws[0] = 100
+            ws[-1] = 10000000
+            tck, t_glob = interpolate.splprep([track_interp[:, 0], track_interp[:, 1]], w=ws, k=3, s=smoothing)[:2]
+
+            # Over extend the smooth path so that the true path length can be found
+            smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.2, no_points_track*4), tck, ext=0)).T[:-1]
+            print(self.track[-1, :2])
+            print(track_interp[-1, :2])
+            print(old_track[-1, :2])
+            dists = np.linalg.norm(smooth_path - self.track[-1, :2], axis=1)
+            min_point = np.argmin(dists, axis=0)
+            print(dists)
+            print(min_point)
+            smooth_path = smooth_path[:min_point+1]
+
+            # get normal path 
+            tck, t_glob = interpolate.splprep([track_interp[:, 0], track_interp[:, 1]], k=3, s=0)[:2]
+            smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.0, no_points_track), tck, ext=0)).T
+
+            # find new widths
+            closest_t_glob = np.zeros(no_points_track)
+            closest_point = np.zeros((no_points_track, 2))
+            dists = np.zeros(len(self.track))
+            t_glob_guess = self.s_track / self.s_track[-1]
+            for z in range(no_points_track):
+                closest_t_glob[z] = optimize.fmin(dist_to_p, x0=t_glob_guess[z], args=(tck, self.track[z, :2]), disp=False)
+
+                closest_point[z] = interpolate.splev(closest_t_glob[z], tck)
+                dists[z] = np.linalg.norm(closest_point[z] - self.track[z, :2])
+
+
+            sides = np.zeros(no_points_track)
+            for z in range(1, no_points_track):
+                sides[z-1] = side_of_line(a=self.track[z-1, :2], b=self.track[z, :2], z=closest_point[z])
+                
+            w_tr_right_new = self.track[:, 2] + sides * dists
+            w_tr_left_new = self.track[:, 3] - sides * dists
+
+            smooth_track = np.hstack((smooth_path, w_tr_left_new.reshape(-1, 1), w_tr_right_new.reshape(-1, 1)))
+
+            self.track = smooth_track
+            self.calculate_length_heading_nvecs()
+
+            crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
+
+
+            plt.figure(2)
+            plt.clf()
+            plt.plot(old_track[:, 0], old_track[:, 1], 'r', linewidth=2)
+            l1 = old_track[:, :2] + old_track[:, 2][:, None] * old_nvecs
+            l2 = old_track[:, :2] - old_track[:, 3][:, None] * old_nvecs
+            plt.plot(l1[:, 0], l1[:, 1], 'r', linestyle='--', linewidth=1)
+            plt.plot(l2[:, 0], l2[:, 1], 'r', linestyle='--', linewidth=1)
+            for i in range(len(old_track)):
+                xs = [l1[i, 0], l2[i, 0]]
+                ys = [l1[i, 1], l2[i, 1]]
+                plt.plot(xs, ys, color='orange', linewidth=1)
+
+            plt.plot(self.track[:, 0], self.track[:, 1], 'b', linewidth=2)
+            l1 = self.track[:, :2] + self.track[:, 2][:, None] * self.nvecs
+            l2 = self.track[:, :2] - self.track[:, 3][:, None] * self.nvecs
+            plt.plot(l1[:, 0], l1[:, 1], 'b', linestyle='--', linewidth=1)
+            plt.plot(l2[:, 0], l2[:, 1], 'b', linestyle='--', linewidth=1)
+            for i in range(len(self.track)):
+                xs = [l1[i, 0], l2[i, 0]]
+                ys = [l1[i, 1], l2[i, 1]]
+                plt.plot(xs, ys, color='green', linewidth=1)
+
+
+            plt.axis('equal')
+
+            plt.show()
+
+            if not crossing: break
+
+
+
+
+def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
+    s = interpolate.splev(t_glob, path)
+    return spatial.distance.euclidean(p, s)
+
+from typing import Union
+def side_of_line(a: Union[tuple, np.ndarray],
+                 b: Union[tuple, np.ndarray],
+                 z: Union[tuple, np.ndarray]) -> float:
+
+    side = np.sign((b[0] - a[0]) * (z[1] - a[1]) - (b[1] - a[1]) * (z[0] - a[0]))
+
+    return side
 
 class PlotLocalMap(LocalMap):
     def __init__(self, track):

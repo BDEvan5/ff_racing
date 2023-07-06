@@ -32,9 +32,8 @@ class LocalMapGenerator:
         long_side, short_side = self.extract_boundaries(pts, pt_distances, inds)
         track = self.project_side_to_track(long_side)
 
-        lm = PlotLocalMap(track)
+        local_map = PlotLocalMap(track)
         # lm = LocalMap(track)
-        local_map = self.adjust_track_normals(lm)
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
         self.counter += 1
@@ -91,7 +90,7 @@ class LocalMapGenerator:
         side_lm = LocalMap(side)
         center_line = side + side_lm.nvecs * TRACK_WIDTH / 2
         n_pts = int(side.shape[0] / 2)
-        center_line = interpolate_track(center_line, n_pts, 1)
+        center_line = interpolate_track(center_line, n_pts, 0)
 
         center_line = center_line[center_line[:, 0] > 0] # remove points behind the car
 
@@ -104,19 +103,19 @@ class LocalMapGenerator:
 
         return track
 
-    def adjust_track_normals(self, lm):
-        crossing_horizon = min(5, len(lm.track)//2 -1)
-        i = 0
-        while i < 20 and tph.check_normals_crossing.check_normals_crossing(lm.track, lm.nvecs, crossing_horizon):
-            i += 1
-            if np.mean(lm.kappa) > 0:
-                lm.track[:, 2] *= 0.9
-            else:
-                lm.track[:, 3] *= 0.9
-            lm.calculate_length_heading_nvecs()
-            # print(f"{i}:: Normals crossed --> New width: {lm.track[0, 2:]}")
+    # def adjust_track_normals(self, lm):
+    #     crossing_horizon = min(5, len(lm.track)//2 -1)
+    #     i = 0
+    #     while i < 20 and tph.check_normals_crossing.check_normals_crossing(lm.track, lm.nvecs, crossing_horizon):
+    #         i += 1
+    #         if np.mean(lm.kappa) > 0:
+    #             lm.track[:, 2] *= 0.9
+    #         else:
+    #             lm.track[:, 3] *= 0.9
+    #         lm.calculate_length_heading_nvecs()
+    #         # print(f"{i}:: Normals crossed --> New width: {lm.track[0, 2:]}")
 
-        return lm
+    #     return lm
 
         
         

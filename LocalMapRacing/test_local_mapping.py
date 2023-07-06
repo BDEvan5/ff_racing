@@ -1,6 +1,7 @@
 from LocalMapRacing.f1tenth_gym.f110_env import F110Env
 from LocalMapRacing.Planners.LocalMPCC import LocalMPCC
 from LocalMapRacing.Planners.LocalMapPP import LocalMapPP
+from LocalMapRacing.Planners.LocalMapCenter import LocalMapCenter
 
 
 import numpy as np
@@ -54,14 +55,15 @@ def test_single_map():
     # map_name = "esp" # "aut", "esp", "gbr", "mco"
     n_test_laps = 1
     set_n = 1
-    test_name = f"LocalRacePP_{set_n}"
+    # test_name = f"LocalRacePP_{set_n}"
     # test_name = "DataLocalPP"
     # test_name = "devel_local_mpcc"
     # test_name = f"LocalMPCC_{set_n}"
-    # test_name = f"LocalCenterPP_{set_n}"
+    test_name = f"LocalCenter_{set_n}"
     
     env = F110Env(map=map_name, num_agents=1)
-    planner = LocalMapPP(test_name, map_name)
+    # planner = LocalMapPP(test_name, map_name)
+    planner = LocalMapCenter(test_name, map_name)
     # planner = LocalMPCC(map_name, test_name)
     
     run_simulation_loop_laps(env, planner, n_test_laps, 10)
@@ -114,8 +116,8 @@ def run_profiling(function, name):
 
 
 if __name__ == "__main__":
-    run_profiling(test_single_map, "LocalAUT")
-    # test_single_map()
+    # run_profiling(test_single_map, "LocalAUT")
+    test_single_map()
     # test_pure_pursuit_all_maps()
     # test_mpcc_all_maps()
 

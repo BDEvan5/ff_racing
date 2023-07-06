@@ -20,9 +20,9 @@ MAX_STEER = 0.4
 MAX_SPEED = 8
 
 VERBOSE = False
-# VERBOSE = True
+VERBOSE = True
 
-class LocalMapPP:
+class LocalMapCenter:
     def __init__(self, test_name, map_name):
         self.name = test_name
         self.path = f"Data/{test_name}/"
@@ -39,7 +39,6 @@ class LocalMapPP:
                 
         self.local_map_generator = LocalMapGenerator(self.path, map_name)
         self.local_map = None # LocalMap(self.path)
-        self.local_raceline = LocalRaceline(self.path)
 
         self.track_line = TrackLine(map_name, False, False)
         self.map_data = MapData(map_name)
@@ -49,34 +48,27 @@ class LocalMapPP:
         self.sines = np.sin(angles)
         
     def plan(self, obs):
-        # if self.counter > 50:
-        #     return np.zeros(2)
-
         if self.counter % 50 == 0:
             print(f"Counter: {self.counter}")
 
         self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
-        raceline = self.local_raceline.generate_raceline(self.local_map)
+        self.local_map.apply_required_smoothing()
         
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
         heading = obs['full_states'][0][4]
-        scan_xs = obs['scans'][0] * self.coses
-        scan_ys = obs['scans'][0] * self.sines
         
-
-        # action, lhd_pt = self.pure_pursuit_center_line()
-        action, lhd_pt = self.pure_pursuit_racing_line(obs)
+        action, lhd_pt = self.pure_pursuit_center_line()
 
         self.vehicle_state_history.add_memory_entry(obs, action)
 
-
-        # if VERBOSE or self.counter > 50:
         if VERBOSE:
+        # if self.counter > 50:
             np.save(self.scan_data_path + f"scan_{self.counter}.npy", obs['scans'][0])
 
             plt.figure(3)
             plt.clf()
             self.map_data.plot_map_img()
+            self.map_data.plot_centre_line()
             x, y = self.map_data.xy2rc(obs['poses_x'][0], obs['poses_y'][0])
             s = 12
             plt.arrow(x, y, s*np.cos(heading), s*np.sin(heading), color='red', width=1, head_width = 4)
@@ -85,24 +77,12 @@ class LocalMapPP:
             x, y = self.map_data.xy2rc(lhd_pt[0], lhd_pt[1])
             plt.plot(x, y, 'x', color='green')
             
+            scan_xs = obs['scans'][0] * self.coses
+            scan_ys = obs['scans'][0] * self.sines
             pts = np.stack((scan_xs, scan_ys), axis=1)
             pts = calculate_offset_coords(pts, position, heading)
             scan_xs, scan_ys = self.map_data.pts2rc(pts)
             plt.plot(scan_xs, scan_ys, '.', color='blue')
-
-            raceline_pts = calculate_offset_coords(raceline[:, :2], position, heading)
-            rxs, rys = self.map_data.pts2rc(raceline_pts)
-            points = np.stack([rxs, rys]).T
-            points = points.reshape(-1, 1, 2)
-            segments = np.concatenate([points[:-1], points[1:]], axis=1)
-
-            norm = plt.Normalize(2, 8)
-            lc = LineCollection(segments, cmap='jet', norm=norm)
-            lc.set_array(raceline[:, 2])
-            lc.set_linewidth(3)
-            line = plt.gca().add_collection(lc)
-            plt.colorbar(line)
-            plt.gca().set_aspect('equal', adjustable='box')
 
             history = np.array(self.vehicle_state_history.states)
             hxs, hys = self.map_data.pts2rc(history[:, :2])
@@ -131,8 +111,8 @@ class LocalMapPP:
 
         lookahead = min(lookahead, self.local_map.s_track[-1]) 
         lookahead_point = interp_2d_points(lookahead, self.local_map.s_track, self.local_map.track[:, 0:2])
-        if VERBOSE:
-            print(f"Lookahead: {lookahead}, Lookahead point: {lookahead_point}: Current progress: {current_progress}")
+        # if VERBOSE:
+        #     print(f"Lookahead: {lookahead:.2f}, Lookahead point: ({lookahead_point[0]:.2f}, {lookahead_point[1]:.2f}): Current progress: {current_progress:.2f}")
 
         steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
@@ -140,28 +120,7 @@ class LocalMapPP:
         
         return np.array([steering_angle, speed]), lookahead_point
 
-    def pure_pursuit_racing_line(self, obs):
-        # current_progress = np.linalg.norm(self.local_raceline.raceline[0, :])
-        current_progress = 0
-        # lookahead = LOOKAHEAD_DISTANCE + current_progress
-        lookahead = LOOKAHEAD_DISTANCE 
-        # lookahead = 0.3 + obs['linear_vels_x'][0] * 0.15 + current_progress
-        lookahead = min(lookahead, self.local_raceline.s_track[-1]) 
-        lookahead_point = interp_2d_points(lookahead, self.local_raceline.s_track, self.local_raceline.raceline)
 
-        exact_lookahead = np.linalg.norm(lookahead_point)
-        steering_angle = get_local_steering_actuation(lookahead_point, exact_lookahead, WHEELBASE)
-        steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
-        # steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
-        speed = np.interp(current_progress, self.local_raceline.s_track, self.local_raceline.vs) #* 0.8
-        max_turning_speed = calculate_speed(steering_angle, f_s=0.99, max_v=8)
-        # print(f"Speed: {speed:.3f}, Max turning speed: {max_turning_speed:.3f} --> Difference: {(speed - max_turning_speed):.3f}")
-        speed = min(speed, max_turning_speed)
-
-
-        return np.array([steering_angle, speed]), lookahead_point
-    
-        
     def done_callback(self, final_obs):
         self.vehicle_state_history.save_history()
         
@@ -171,12 +130,13 @@ class LocalMapPP:
         
      
     
-# @njit(cache=True)
+@njit(cache=True)
 def calculate_offset_coords(pts, position, heading):
     rotation = np.array([[np.cos(heading), -np.sin(heading)],
                         [np.sin(heading), np.cos(heading)]])
         
-    new_pts = np.matmul(rotation, pts.T).T + position
+    new_pts = (rotation @ pts.T).T + position
+    # new_pts = np.matmul(rotation, pts.T).T + position
 
     return new_pts
 

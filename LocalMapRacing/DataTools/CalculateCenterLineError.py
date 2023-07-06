@@ -90,7 +90,7 @@ def calculate_centerline_area_error(name):
     lm_path = path + "LocalMapError/"
     ensure_path_exists(lm_path)
     
-    map_root = path + "LocalMapData/"
+    map_root = path + f"LocalMapData_{map_name.upper()}/"
     history = np.load(path + "TestingAUT/" + f"Lap_0_history_{name}.npy")
     states = history[:, 0:7]
     actions = history[:, 7:9]
@@ -100,7 +100,9 @@ def calculate_centerline_area_error(name):
         file = map_root + f"local_map_{i}.npy"
         try:
             local_track = np.load(file)
-        except: break
+        except Exception as e: 
+            print(e)
+            break
 
         distances, progresses = [], []
         c_points = []
@@ -139,7 +141,7 @@ def calculate_centerline_area_error_plot(name):
     lm_path = path + "LocalMapError/"
     ensure_path_exists(lm_path)
     
-    map_root = path + "LocalMapData/"
+    map_root = path + f"LocalMapData_{map_name.upper()}/"
     history = np.load(path + "TestingAUT/" + f"Lap_0_history_{name}.npy")
     states = history[:, 0:7]
     actions = history[:, 7:9]
@@ -182,8 +184,6 @@ def calculate_centerline_area_error_plot(name):
         plt.savefig(lm_path + f"local_map_error_{i}.svg")
 
 
-
-
     np.save(path + f"local_map_error_{name}.npy", lm_errors)
 
     plt.plot(lm_errors)
@@ -191,4 +191,5 @@ def calculate_centerline_area_error_plot(name):
     plt.savefig(path + f"local_map_error_{name}.svg")
 
 
-calculate_centerline_area_error("LocalCenterPP")
+# calculate_centerline_area_error("LocalCenter_1")
+calculate_centerline_area_error_plot("LocalCenter_1")
