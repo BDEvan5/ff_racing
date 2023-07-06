@@ -38,8 +38,7 @@ class MapCenterline:
         plt.show()
 
     def calucalte_center_point(self, point):
-        distances = np.linalg.norm(self.track[:, 0:2] - point, axis=1)
-        idx = np.argmin(distances)
+        idx, distances = self.get_trackline_segment(point)
         x, h = self.interp_pts(idx, distances)
         s = (self.s_track[idx] + x) / self.s_track[-1]
 
@@ -47,6 +46,27 @@ class MapCenterline:
         h_true = np.linalg.norm(c_point - point)
 
         return c_point, s, h_true
+
+    def get_trackline_segment(self, point):
+        """Returns the first index representing the line segment that is closest to the point.
+
+        wpt1 = pts[idx]
+        wpt2 = pts[idx+1]
+
+        dists: the distance from the point to each of the wpts.
+        """
+        dists = np.linalg.norm(point - self.track[:, :2], axis=1)
+
+        min_dist_segment = np.argmin(dists)
+        if min_dist_segment == 0:
+            return 0, dists
+        elif min_dist_segment == len(dists)-1:
+            return len(dists)-2, dists 
+
+        if dists[min_dist_segment+1] < dists[min_dist_segment-1]:
+            return min_dist_segment, dists
+        else: 
+            return min_dist_segment - 1, dists
 
     def interp_pts(self, idx, dists):
         if idx == len(self.s_track) - 1:
