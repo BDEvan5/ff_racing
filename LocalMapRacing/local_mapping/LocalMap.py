@@ -239,6 +239,7 @@ class LocalMap:
             self.track[i, 3] += distance_magnitude * np.sign(self.kappa[i])
 
         self.calculate_length_heading_nvecs()
+        self.interpolate_track_scipy(None, 0.1)
 
         self.plot_smoothing(old_track, old_nvecs, counter, path)
 
