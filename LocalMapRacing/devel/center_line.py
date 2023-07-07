@@ -150,41 +150,35 @@ class LocalMap:
         plt.figure(4)
         plt.clf()
         plt.plot(self.kappa, label='Std')
-        # plt.plot(np.abs(self.kappa) ** 0.3 * np.sign(self.kappa), label='0.3')
-        # plt.plot(np.abs(self.kappa) ** 0.5 * np.sign(self.kappa))
-        # plt.plot(np.abs(self.kappa) ** 2 * np.sign(self.kappa))
-        # plt.plot(np.clip(np.abs(self.kappa), 0, 0.8) ** 2 * np.sign(self.kappa), label='clip and square')
-        # plt.plot(np.abs(self.kappa) ** 3 * np.sign(self.kappa))
+        plt.plot( (np.abs(self.kappa) + 1) **0.2 - 1, label="Ecos 0.2")
+        plt.plot( (np.abs(self.kappa) + 1) **0.3 - 1, label="Ecos 0.3")
+        plt.plot((np.abs(self.kappa) + 1) **0.4 - 1, label="Ecos 0.4")
+        plt.plot((np.abs(self.kappa) + 1) **0.5 - 1, label="Ecos 0.5")
+        plt.plot((np.abs(self.kappa) + 1) **0.6 - 1, label="Ecos 0.6")
 
-        plt.plot(np.abs(np.diff(self.kappa)), label='diff')
-        plt.plot(np.abs(np.diff(self.kappa)) * np.abs(self.kappa[:-1]), label='diff x kappa')
-        # plt.plot(np.abs(np.diff(self.kappa))**0.5, label='diff square')
 
         plt.grid(True)
 
-        d_kappa = np.diff(self.kappa)
         distances = []
         for i in range(1, no_points_track-1):
-            # move center line point along nvec in proportion to curvature
             if np.abs(self.kappa[i]) < 0.1: continue
-            # d_pt = self.nvecs[i] * np.abs(self.kappa[i]) ** 0.3 * np.sign(self.kappa[i]) * 0.5
-            d_pt = self.nvecs[i] * np.clip(np.abs(self.kappa[i]), 0, 0.8) ** 2 * np.sign(self.kappa[i]) * 0.5
-            # d_pt = self.nvecs[i] * np.abs(d_kappa[i])* np.abs(self.kappa[i]) * np.sign(self.kappa[i]) 
-            distance = np.linalg.norm(d_pt)
-            distances.append(distance)
+
+            distance_magnitude = 1 * (np.abs(self.kappa[i]) + 1) **0.4 - 1
+            d_pt = self.nvecs[i] * distance_magnitude * np.sign(self.kappa[i])
+            distances.append(distance_magnitude)
 
             self.track[i, :2] += d_pt
-            self.track[i, 2] -= distance * np.sign(self.kappa[i])
-            self.track[i, 3] += distance * np.sign(self.kappa[i])
+            self.track[i, 2] -= distance_magnitude * np.sign(self.kappa[i])
+            self.track[i, 3] += distance_magnitude * np.sign(self.kappa[i])
                 
 
         self.calculate_length_heading_nvecs()
         plt.plot(self.kappa, label='Smoothed')
         plt.legend()
 
-        # plt.figure(1)
-        # plt.clf()
-        # plt.plot(distances)
+        plt.figure(1)
+        plt.clf()
+        plt.plot(distances)
 
         self.plot_smoothing(old_track, old_nvecs)
 
