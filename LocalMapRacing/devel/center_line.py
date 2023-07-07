@@ -185,6 +185,83 @@ class LocalMap:
 
         plt.pause(0.001)
 
+    def build_smooth_track3(self):
+        crossing_horizon = min(5, len(self.track)//2 -1)
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
+        
+        if not crossing: return
+        self.interpolate_track(0.4)
+        old_track = np.copy(self.track)
+        old_nvecs = np.copy(self.nvecs)
+        
+        no_points_track = len(self.track)
+        ws = np.ones_like(self.track[:, 0])
+        ws[0:2] = 100
+        ws[-2:] = 100
+        tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], w=ws, k=3, s=0.1)[0]
+        smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.0, no_points_track), tck, ext=0)).T
+        self.track[:, :2] = smooth_path
+
+        self.calculate_length_heading_nvecs()
+
+        old_track = np.copy(self.track)
+        old_nvecs = np.copy(self.nvecs)
+
+        for z in range(1):
+
+            for i in range(1, no_points_track-1):
+                if np.abs(self.kappa[i]) < 0.2: continue
+
+                distance_magnitude = 1 * (np.abs(self.kappa[i]) + 1) **0.4 - 1
+                d_pt = self.nvecs[i] * distance_magnitude * np.sign(self.kappa[i])
+
+                self.track[i, :2] += d_pt
+                self.track[i, 2] -= distance_magnitude * np.sign(self.kappa[i])
+                self.track[i, 3] += distance_magnitude * np.sign(self.kappa[i])
+                    
+
+            self.calculate_length_heading_nvecs()
+
+
+        self.plot_smoothing(old_track, old_nvecs)
+
+        plt.pause(0.001)
+
+    def build_smooth_track4(self):
+        crossing_horizon = min(5, len(self.track)//2 -1)
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
+        
+        if not crossing: return
+        self.interpolate_track(0.4)
+        old_track = np.copy(self.track)
+        old_nvecs = np.copy(self.nvecs)
+        
+        no_points_track = len(self.track)
+        ws = np.ones_like(self.track[:, 0])
+        ws[0:2] = 100
+        ws[-2:] = 100
+        tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], w=ws, k=3, s=0.1)[0]
+        smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.0, no_points_track), tck, ext=0)).T
+        self.track[:, :2] = smooth_path
+
+        self.calculate_length_heading_nvecs()
+
+        for i in range(1, no_points_track-1):
+            if np.abs(self.kappa[i]) < 0.2: continue
+
+            distance_magnitude =  (np.abs(self.kappa[i]) + 1) **0.3 - 1
+            d_pt = self.nvecs[i] * distance_magnitude * np.sign(self.kappa[i])
+
+            self.track[i, :2] += d_pt
+            self.track[i, 2] -= distance_magnitude * np.sign(self.kappa[i])
+            self.track[i, 3] += distance_magnitude * np.sign(self.kappa[i])
+
+        self.calculate_length_heading_nvecs()
+
+        self.plot_smoothing(old_track, old_nvecs)
+
+        plt.pause(0.001)
+
     def plot_smoothing(self, old_track, old_nvecs):
         plt.figure(2)
         plt.clf()
@@ -295,7 +372,9 @@ def make_c_line():
     local_map = LocalMap(track)
     local_map.interpolate_track(0.4)
 
-    local_map.build_smooth_track2()
+    # local_map.build_smooth_track2()
+    # local_map.build_smooth_track3()
+    local_map.build_smooth_track4()
     plt.show()
 
     # local_map.plot_local_map()

@@ -85,6 +85,16 @@ class LocalMap:
         self.track = interp_nd_points(new_s, self.s_track, self.track)
 
         self.calculate_length_heading_nvecs()
+
+    def interpolate_track_scipy(self, n_pts=None, s=0):
+        ws = np.ones_like(self.track[:, 0])
+        ws[0:2] = 100
+        ws[-2:] = 100
+        tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], w=ws, k=3, s=s)[0]
+        if n_pts is None: n_pts = len(self.track)
+        self.track[:, :2] = np.array(interpolate.splev(np.linspace(0, 1, n_pts), tck)).T
+
+        self.calculate_length_heading_nvecs()
     
     def extend_track_end(self, n_pts, distance=0.8):
         nvec_forward = self.nvecs[-1][::-1]
@@ -163,13 +173,82 @@ class LocalMap:
         # fig, axs = plt.subplots(2, 1, figsize=(10, 10), num=5)
 
         # axs[0].plot(self.s_track, self.kappa, 'b')
-        # axs[1].plot(self.s_track[:-1], np.diff(self.kappa), 'b')
-            
-        self.plot_smoothing(old_track, old_nvecs, counter, path)
-        # plt.show()
+        # axs[1].plot(self.s_track[:-1crossing_horizon = min(5, len(self.track)//2 -1)
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
+        
+        if not crossing: return
+        self.interpolate_track(0.4)
+        old_track = np.copy(self.track)
+        old_nvecs = np.copy(self.nvecs)
+        
+        no_points_track = len(self.track)
+        ws = np.ones_like(self.track[:, 0])
+        ws[0:2] = 100
+        ws[-2:] = 100
+        tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], w=ws, k=3, s=0.1)[0]
+        smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.0, no_points_track), tck, ext=0)).T
+        self.track[:, :2] = smooth_path
+
+        self.calculate_length_heading_nvecs()
+
+        for i in range(1, no_points_track-1):
+            if np.abs(self.kappa[i]) < 0.2: continue
+
+            distance_magnitude =  (np.abs(self.kappa[i]) + 1) **0.3 - 1
+            d_pt = self.nvecs[i] * distance_magnitude * np.sign(self.kappa[i])
+
+            self.track[i, :2] += d_pt
+            self.track[i, 2] -= distance_magnitude * np.sign(self.kappa[i])
+            self.track[i, 3] += distance_magnitude * np.sign(self.kappa[i])
+
+        self.calculate_length_heading_nvecs()
+
+        self.plot_smoothing(old_track, old_nvecs)
+
         plt.pause(0.001)
 
 
+    def adjust_center_line_smoothing(self, counter, path):
+        crossing_horizon = min(5, len(self.track)//2 -1)
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
+        
+        if not crossing: return
+        self.interpolate_track(0.8)
+        old_track = np.copy(self.track)
+        old_nvecs = np.copy(self.nvecs)
+        
+        # ws = np.ones_like(self.track[:, 0])
+        # ws[0:2] = 100
+        # ws[-2:] = 100
+        # tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], w=ws, k=3, s=0.1)[0]
+        # smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.0, no_points_track), tck, ext=0)).T
+        # self.track[:, :2] = smooth_path
+        self.interpolate_track_scipy(None, 0.1)
+
+        self.calculate_length_heading_nvecs()
+
+        no_points_track = len(self.track)
+        for i in range(1, no_points_track-1):
+            if np.abs(self.kappa[i]) < 0.2: continue
+
+            distance_magnitude =  (np.abs(self.kappa[i]) + 1) **0.3 - 1
+            d_pt = self.nvecs[i] * distance_magnitude * np.sign(self.kappa[i])
+
+            self.track[i, :2] += d_pt
+            self.track[i, 2] -= distance_magnitude * np.sign(self.kappa[i])
+            self.track[i, 3] += distance_magnitude * np.sign(self.kappa[i])
+
+        self.calculate_length_heading_nvecs()
+
+        self.plot_smoothing(old_track, old_nvecs, counter, path)
+
+        crossing_horizon = min(5, len(self.track)//2 -1)
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
+
+        if crossing:
+            print(f'Crossing after smoothing: {counter}')
+
+        # plt.pause(0.001)
 
 
     def apply_required_smoothing(self, counter, path):
