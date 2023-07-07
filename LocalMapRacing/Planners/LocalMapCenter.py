@@ -56,8 +56,15 @@ class LocalMapCenter:
         self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
         # self.local_map.apply_required_smoothing(self.counter, self.lm_smooth_path)
         # self.local_map.build_smooth_track(self.counter, self.lm_smooth_path)
-        self.local_map.adjust_center_line_smoothing(self.counter, self.lm_smooth_path)
-        
+        crossing = self.local_map.adjust_center_line_smoothing(self.counter, self.lm_smooth_path)
+        if crossing:
+            print(f"Crossing detected at {self.counter}")
+
+            # c2 = self.local_map.adjust_center_line_smoothing(self.counter, self.lm_smooth_path)
+
+            # print(f"Fixing result.... --> {c2}")
+            # if c2: plt.show()
+
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
         heading = obs['full_states'][0][4]
         

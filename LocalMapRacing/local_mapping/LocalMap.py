@@ -92,7 +92,26 @@ class LocalMap:
         ws[-2:] = 100
         tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], w=ws, k=3, s=s)[0]
         if n_pts is None: n_pts = len(self.track)
+        # smooth_path = np.array(interpolate.splev(np.linspace(0, 1, n_pts), tck)).T
         self.track[:, :2] = np.array(interpolate.splev(np.linspace(0, 1, n_pts), tck)).T
+
+        # no_points_track = len(smooth_path)
+        # closest_point = np.zeros((no_points_track, 2))
+        # dists = np.zeros(no_points_track)
+        # for z in range(no_points_track):
+        #     s, h, pt = self.calculate_s(smooth_path[z, :2])
+        #     closest_point[z] = pt
+        #     dists[z] = h
+
+        # sides = np.zeros(no_points_track)
+        # for z in range(1, no_points_track):
+        #     sides[z-1] = side_of_line(a=self.track[z-1, :2], b=self.track[z, :2], z=closest_point[z])
+            
+        # w_tr_right_new = self.track[:, 2] + sides * dists /2
+        # w_tr_left_new = self.track[:, 3] - sides * dists /2
+
+        # self.track = np.hstack((smooth_path, w_tr_left_new.reshape(-1, 1), w_tr_right_new.reshape(-1, 1)))
+
 
         self.calculate_length_heading_nvecs()
     
@@ -213,16 +232,11 @@ class LocalMap:
         crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
         
         if not crossing: return
+
         self.interpolate_track(0.8)
         old_track = np.copy(self.track)
         old_nvecs = np.copy(self.nvecs)
         
-        # ws = np.ones_like(self.track[:, 0])
-        # ws[0:2] = 100
-        # ws[-2:] = 100
-        # tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], w=ws, k=3, s=0.1)[0]
-        # smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.0, no_points_track), tck, ext=0)).T
-        # self.track[:, :2] = smooth_path
         self.interpolate_track_scipy(None, 0.1)
 
         self.calculate_length_heading_nvecs()
@@ -246,10 +260,7 @@ class LocalMap:
         crossing_horizon = min(5, len(self.track)//2 -1)
         crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
 
-        if crossing:
-            print(f'Crossing after smoothing: {counter}')
-
-        # plt.pause(0.001)
+        return crossing
 
 
     def apply_required_smoothing(self, counter, path):
