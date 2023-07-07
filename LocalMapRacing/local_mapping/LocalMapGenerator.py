@@ -92,7 +92,7 @@ class LocalMapGenerator:
         n_pts = int(side.shape[0] / 2)
         center_line = interpolate_track(center_line, n_pts, 0)
 
-        center_line = center_line[center_line[:, 0] > 0] # remove points behind the car
+        center_line = center_line[center_line[:, 0] > -1] # remove points behind the car
 
         pt_init = np.linalg.norm(center_line[0, :])
         pt_final = np.linalg.norm(center_line[-1, :])
@@ -103,19 +103,6 @@ class LocalMapGenerator:
 
         return track
 
-    # def adjust_track_normals(self, lm):
-    #     crossing_horizon = min(5, len(lm.track)//2 -1)
-    #     i = 0
-    #     while i < 20 and tph.check_normals_crossing.check_normals_crossing(lm.track, lm.nvecs, crossing_horizon):
-    #         i += 1
-    #         if np.mean(lm.kappa) > 0:
-    #             lm.track[:, 2] *= 0.9
-    #         else:
-    #             lm.track[:, 3] *= 0.9
-    #         lm.calculate_length_heading_nvecs()
-    #         # print(f"{i}:: Normals crossed --> New width: {lm.track[0, 2:]}")
-
-    #     return lm
 
         
         
