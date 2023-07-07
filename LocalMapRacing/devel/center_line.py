@@ -89,10 +89,10 @@ class LocalMap:
             nvec_line = np.array([tb_l[i+1], tb_r[i+1]])
 
             intersection_pt = calculate_intersection(forward_line, nvec_line)
+            print(intersection_pt)
             if intersection_pt is None: raise ValueError('No intersection found')
 
             distance = np.linalg.norm(intersection_pt - self.track[i+1, :2])
-            # sign = np.sign(np.dot(intersection_pt - self.track[i+1, :2], self.nvecs[i+1]))
             sign = side_of_line(self.track[i, :2], self.track[i+1, :2], intersection_pt)
             self.track[i+1, :2] = intersection_pt
             self.track[i+1, 2] += distance * sign
@@ -191,9 +191,16 @@ def calculate_intersection(line1, line2):
     intercept1 = y1 - slope1 * x1
     intercept2 = y3 - slope2 * x3
 
-    # Calculate the intersection point (x, y)
-    x = (intercept2 - intercept1) / (slope1 - slope2) if slope1 != float('inf') and slope2 != float('inf') else float('inf')
-    y = slope1 * x + intercept1 if slope1 != float('inf') else slope2 * x + intercept2
+    if slope1 == float('inf'):
+        x = x1
+        y = slope2 * x + intercept2
+    elif slope2 == float('inf'):
+        x = x3
+        y = slope1 * x + intercept1
+    else:
+        # Calculate the intersection point (x, y)
+        x = (intercept2 - intercept1) / (slope1 - slope2) 
+        y = slope1 * x + intercept1 
 
     return np.array([x, y])
 
