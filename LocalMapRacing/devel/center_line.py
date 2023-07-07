@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import LocalMapRacing.tph_utils as tph
 from LocalMapRacing.local_mapping.local_map_utils import *
-
+from scipy import interpolate
+from scipy import optimize
+from scipy import spatial
 
 class LocalMap:
     def __init__(self, track):
@@ -61,46 +63,132 @@ class LocalMap:
 
         # plt.pause(0.001)
 
-        d_kappa = np.diff(self.kappa)
-        n_anlges = self.psi - np.pi/2
-        for i in range(1, len(d_kappa)):
-            if abs(self.kappa[i]) > 0.8:
-                if d_kappa[i] > 0:
-                    n_anlges[i] += 0.2
-                    n_anlges[i+1] += 0.15
-                else:
-                    n_anlges[i-1] -= 0.15
-                    n_anlges[i] -= 0.22
+        # d_kappa = np.diff(self.kappa)
+        # n_anlges = self.psi - np.pi/2
+        # for i in range(1, len(d_kappa)):
+        #     if abs(self.kappa[i]) > 0.8:
+        #         if d_kappa[i] > 0:
+        #             n_anlges[i] += 0.2
+        #             n_anlges[i+1] += 0.15
+        #         else:
+        #             n_anlges[i-1] -= 0.15
+        #             n_anlges[i] -= 0.22
 
-        self.nvecs[:, 0] = np.cos(n_anlges)
-        self.nvecs[:, 1] = np.sin(n_anlges)
+        # self.nvecs[:, 0] = np.cos(n_anlges)
+        # self.nvecs[:, 1] = np.sin(n_anlges)
 
         # old_track = np.copy(self.track)
         # old_nvecs = np.copy(self.nvecs)
 
+        # tb_l = self.track[:, :2] + self.nvecs * self.track[:, 2].reshape(-1, 1)
+        # tb_r = self.track[:, :2] - self.nvecs * self.track[:, 3].reshape(-1, 1)
+
+        # frozen_track = np.copy(self.track)
+        # for i in range(len(self.track)-1):
+        #     forward_vec = np.array([-self.nvecs[i, 1], self.nvecs[i, 0]])
+        #     forward_pt = self.track[i, :2] + forward_vec * 1 # search distance
+        #     forward_line = np.array([self.track[i, :2], forward_pt])
+        #     nvec_line = np.array([tb_l[i+1], tb_r[i+1]])
+
+        #     intersection_pt = calculate_intersection(forward_line, nvec_line)
+        #     print(intersection_pt)
+        #     if intersection_pt is None: raise ValueError('No intersection found')
+
+        #     distance = np.linalg.norm(intersection_pt - self.track[i+1, :2])
+        #     sign = side_of_line(self.track[i, :2], self.track[i+1, :2], intersection_pt)
+        #     self.track[i+1, :2] = intersection_pt
+        #     self.track[i+1, 2] += distance * sign
+        #     self.track[i+1, 3] -= distance * sign
+
+        no_points_track = len(self.track)
+        tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], k=3, s=0.1)[0]
+        smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.0, no_points_track), tck, ext=0)).T
+        self.track[:, :2] = smooth_path
+
+        self.plot_smoothing(old_track, old_nvecs)
+
+        # tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], k=3, s=0)[0]
+        # path_2 = np.array(interpolate.splev(np.linspace(0.0, 1.0, 100), tck, ext=0)).T
+        # plt.plot(path_2[:, 0], path_2[:, 1], 'g', linewidth=2)
+
+        # tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], k=3, s=0.1)[0]
+        # path_2 = np.array(interpolate.splev(np.linspace(0.0, 1.0, 100), tck, ext=0)).T
+        # plt.plot(path_2[:, 0], path_2[:, 1], 'g', linewidth=2)
+
+        # tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], k=3, s=1)[0]
+        # path_2 = np.array(interpolate.splev(np.linspace(0.0, 1.0, 100), tck, ext=0)).T
+        # plt.plot(path_2[:, 0], path_2[:, 1], 'g', linewidth=2)
+
+        # plt.show()
+        plt.pause(0.001)
+
+    def build_smooth_track2(self):
+        crossing_horizon = min(5, len(self.track)//2 -1)
+        crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
+        
+        if not crossing: return
+        self.interpolate_track(0.4)
+        old_track = np.copy(self.track)
+        old_nvecs = np.copy(self.nvecs)
+        
         tb_l = self.track[:, :2] + self.nvecs * self.track[:, 2].reshape(-1, 1)
         tb_r = self.track[:, :2] - self.nvecs * self.track[:, 3].reshape(-1, 1)
 
-        frozen_track = np.copy(self.track)
-        for i in range(len(self.track)-1):
-            forward_vec = np.array([-self.nvecs[i, 1], self.nvecs[i, 0]])
-            forward_pt = self.track[i, :2] + forward_vec * 1 # search distance
-            forward_line = np.array([self.track[i, :2], forward_pt])
-            nvec_line = np.array([tb_l[i+1], tb_r[i+1]])
+        no_points_track = len(self.track)
+        ws = np.ones_like(self.track[:, 0])
+        ws[0:2] = 100
+        ws[-2:] = 100
+        tck = interpolate.splprep([self.track[:, 0], self.track[:, 1]], w=ws, k=3, s=0.1)[0]
+        smooth_path = np.array(interpolate.splev(np.linspace(0.0, 1.0, no_points_track), tck, ext=0)).T
+        self.track[:, :2] = smooth_path
 
-            intersection_pt = calculate_intersection(forward_line, nvec_line)
-            print(intersection_pt)
-            if intersection_pt is None: raise ValueError('No intersection found')
+        self.calculate_length_heading_nvecs()
 
-            distance = np.linalg.norm(intersection_pt - self.track[i+1, :2])
-            sign = side_of_line(self.track[i, :2], self.track[i+1, :2], intersection_pt)
-            self.track[i+1, :2] = intersection_pt
-            self.track[i+1, 2] += distance * sign
-            self.track[i+1, 3] -= distance * sign
+        old_track = np.copy(self.track)
+        old_nvecs = np.copy(self.nvecs)
 
+        plt.figure(4)
+        plt.clf()
+        plt.plot(self.kappa, label='Std')
+        # plt.plot(np.abs(self.kappa) ** 0.3 * np.sign(self.kappa), label='0.3')
+        # plt.plot(np.abs(self.kappa) ** 0.5 * np.sign(self.kappa))
+        # plt.plot(np.abs(self.kappa) ** 2 * np.sign(self.kappa))
+        # plt.plot(np.clip(np.abs(self.kappa), 0, 0.8) ** 2 * np.sign(self.kappa), label='clip and square')
+        # plt.plot(np.abs(self.kappa) ** 3 * np.sign(self.kappa))
+
+        plt.plot(np.abs(np.diff(self.kappa)), label='diff')
+        plt.plot(np.abs(np.diff(self.kappa)) * np.abs(self.kappa[:-1]), label='diff x kappa')
+        # plt.plot(np.abs(np.diff(self.kappa))**0.5, label='diff square')
+
+        plt.grid(True)
+
+        d_kappa = np.diff(self.kappa)
+        distances = []
+        for i in range(1, no_points_track-1):
+            # move center line point along nvec in proportion to curvature
+            if np.abs(self.kappa[i]) < 0.1: continue
+            # d_pt = self.nvecs[i] * np.abs(self.kappa[i]) ** 0.3 * np.sign(self.kappa[i]) * 0.5
+            d_pt = self.nvecs[i] * np.clip(np.abs(self.kappa[i]), 0, 0.8) ** 2 * np.sign(self.kappa[i]) * 0.5
+            # d_pt = self.nvecs[i] * np.abs(d_kappa[i])* np.abs(self.kappa[i]) * np.sign(self.kappa[i]) 
+            distance = np.linalg.norm(d_pt)
+            distances.append(distance)
+
+            self.track[i, :2] += d_pt
+            self.track[i, 2] -= distance * np.sign(self.kappa[i])
+            self.track[i, 3] += distance * np.sign(self.kappa[i])
+                
+
+        self.calculate_length_heading_nvecs()
+        plt.plot(self.kappa, label='Smoothed')
+        plt.legend()
+
+        # plt.figure(1)
+        # plt.clf()
+        # plt.plot(distances)
 
         self.plot_smoothing(old_track, old_nvecs)
-        # plt.show()
+
+
         plt.pause(0.001)
 
     def plot_smoothing(self, old_track, old_nvecs):
@@ -213,9 +301,9 @@ def make_c_line():
     local_map = LocalMap(track)
     local_map.interpolate_track(0.4)
 
-    local_map.build_smooth_track()
+    local_map.build_smooth_track2()
+    plt.show()
 
-
-    local_map.plot_local_map()
+    # local_map.plot_local_map()
 
 make_c_line()
