@@ -247,7 +247,7 @@ class LocalMapGenerator:
         c_line[0] = (left_pts[0] + right_pts[0]) / 2
         search_size = 2
         for i in range(1, len(left_pts)):
-            diff = (left_pts[i-1] - right_pts[i-1])
+            diff = (left_pts[i] - right_pts[i])
             heading = np.arctan2(diff[1], diff[0])
             new_theta = heading - np.pi/2
 
