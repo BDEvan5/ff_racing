@@ -198,11 +198,11 @@ class LocalMapGenerator:
         max_pts = 30
         end_threshold = 0.1
         theta = 0
-        at_the_end = False
         left_pts, right_pts = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
+        max_long_s, max_short_s = 0, 0
         for i in range(max_pts):
-            long_pt = long_bound.find_closest_point(center_pt)
-            short_pt = short_bound.find_closest_point(center_pt)
+            long_pt, max_long_s = long_bound.find_closest_point(center_pt, max_long_s)
+            short_pt, max_short_s = short_bound.find_closest_point(center_pt, max_short_s)
 
             left_pts[i] = long_pt
             right_pts[i] = short_pt
@@ -271,16 +271,17 @@ class TrackBoundary:
 
         self.tck = interpolate.splprep([self.points[:, 0], self.points[:, 1]], k=3, s=0)[0]
 
-    def find_closest_point(self, pt):
+    def find_closest_point(self, pt, previous_maximum):
         dists = np.linalg.norm(self.points - pt, axis=1)
         closest_ind = np.argmin(dists)
         t_guess = self.cs[closest_ind] / self.cs[-1]
 
         closest_t = optimize.fmin(dist_to_p, x0=t_guess, args=(self.tck, pt), disp=False)
+        t_pt = max(closest_t, previous_maximum)
 
-        closest_pt = np.array(interpolate.splev(closest_t, self.tck, ext=3)).T[0]
+        closest_pt = np.array(interpolate.splev(t_pt, self.tck, ext=3)).T[0]
 
-        return closest_pt
+        return closest_pt, t_pt
         
 
 def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
