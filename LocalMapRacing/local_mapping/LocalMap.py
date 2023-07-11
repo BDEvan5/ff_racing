@@ -213,7 +213,7 @@ class PlotLocalMap(LocalMap):
         plt.figure(1)
         plt.clf()
         if xs is not None and ys is not None:
-            plt.plot(xs, ys, '.', color='#0057e7', alpha=0.7)
+            plt.plot(xs, ys, '.', color='#0057e7', alpha=0.1)
         plt.plot(self.track[:, 0], self.track[:, 1], '-', color='#E74C3C', label="Center", linewidth=3)
         plt.plot(0, 0, 'x', color='black', markersize=10)
 

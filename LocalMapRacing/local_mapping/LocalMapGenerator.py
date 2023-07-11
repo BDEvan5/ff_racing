@@ -34,6 +34,14 @@ class LocalMapGenerator:
 
         local_map = PlotLocalMap(track)
         # lm = LocalMap(track)
+        local_map.plot_local_map(xs=xs_f, ys=ys_f)
+        
+        plt.plot(long_side[:, 0], long_side[:, 1], 'g.', markersize=10)
+        plt.plot(short_side[:, 0], short_side[:, 1], 'g.', markersize=10)
+        
+
+        plt.show()
+
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
         self.counter += 1
@@ -78,11 +86,17 @@ class LocalMapGenerator:
             short_pts = pts[:min_ind]
             short_length = l1_cs[-1]
 
+        smoothing_s = 0.1
         n_pts = int(short_length / POINT_SEP_DISTANCE)
-        short_side = interpolate_track(short_pts, n_pts*2, 0)
+        # short_side = interpolate_track(short_pts, n_pts*2, 0.01)
+        short_side = interpolate_track_new(short_pts, None, smoothing_s)
+        short_side = interpolate_track_new(short_side, n_pts*2, smoothing_s)
+        # short_side = interpolate_track_new(short_pts, n_pts*2, smoothing_s)
 
         n_pts = int(long_length / POINT_SEP_DISTANCE)
-        long_side = interpolate_track(long_pts, n_pts*2, 0)
+        # long_side = interpolate_track(long_pts, n_pts*2, 0.01)
+        long_side = interpolate_track_new(long_pts, None, smoothing_s)
+        long_side = interpolate_track_new(long_side, n_pts*2, smoothing_s)
 
         return long_side, short_side
 
