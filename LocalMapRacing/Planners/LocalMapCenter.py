@@ -57,13 +57,15 @@ class LocalMapCenter:
 
         self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
         self.local_map.plot_local_map()
+
+        plt.show()
         # plt.pause(0.000001)
         self.local_map.interpolate_track(0.8)
         # self.local_map.plot_local_map_offset(np.array([0, 0]), 0, self.map_data.map_origin[:2], self.map_data.map_resolution, save_path=self.online_lm_path, counter=self.counter)
         self.local_map.plot_local_map(self.online_std_path, self.counter)
 
-        if self.counter == 48:
-            print("Stop here")
+        # if self.counter == 48:
+        #     print("Stop here")
 
         crossing = self.local_map.adjust_center_line_smoothing(self.counter, self.lm_smooth_path)
         if crossing:
