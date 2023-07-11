@@ -151,9 +151,10 @@ class LocalMapGenerator:
         max_pts = 40
         end_threshold = 0.1
         theta = 0
-        left_pts, right_pts = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
+        long_points, short_points = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
         max_long_s, max_short_s = 0, 0
         z = 0
+        through_positive_corner = False
         for i in range(max_pts):
             long_pt, max_long_s = long_bound.find_closest_point(center_pt, max_long_s)
             short_pt, max_short_s = short_bound.find_closest_point(center_pt, max_short_s)
@@ -164,11 +165,34 @@ class LocalMapGenerator:
                 print(f"Too early --> moving on: {i}")
                 continue
 
-            left_pts[i] = long_pt
-            right_pts[i] = short_pt
+            if max_short_s > 0.95:
+                # consider a problem...
+                previous_edge_diff = long_pt - long_points[i-1] 
+                previous_edge_heading = np.arctan2(previous_edge_diff[1], previous_edge_diff[0])
+
+                n_diff = long_pt - short_pt
+                proposed_track_heading = np.arctan2(n_diff[1], n_diff[0]) - np.pi/2
+                d_track_heading = proposed_track_heading - previous_edge_heading
+
+                if d_track_heading > 0:
+                    through_positive_corner = True
+                
+                if through_positive_corner and d_track_heading < 0:
+                    print(f"Change point")
+                    nvec_angle = previous_edge_heading + np.pi/2
+                    proposed_pt = long_pt - TRACK_WIDTH * np.array([np.cos(nvec_angle), np.sin(nvec_angle)])
+                    print(f"Previous short_pt: {short_pt}, New: {short_pt}")
+                    short_pt = proposed_pt
+
+                print(f"{i} :: Previous edge: {previous_edge_heading:.3f}; proposed track: {proposed_track_heading:.3f}; d_track_heading: {d_track_heading:.3f}")
+
+            long_points[i] = long_pt
+            short_points[i] = short_pt
             
             long_distance = np.linalg.norm(long_pt - long_bound.points[-1])
             short_distance = np.linalg.norm(short_pt - short_bound.points[-1])
+            if long_distance < end_threshold and through_positive_corner:
+                break
             if long_distance < end_threshold and short_distance < end_threshold:
                 break
 
@@ -210,10 +234,10 @@ class LocalMapGenerator:
         plt.axis('equal')
         # plt.show()
         plt.pause(0.00001)
-        left_pts = np.array(left_pts[z:i+1])
-        right_pts = np.array(right_pts[z:i+1])
+        long_points = np.array(long_points[z:i+1])
+        short_points = np.array(short_points[z:i+1])
 
-        return left_pts, right_pts
+        return long_points, short_points
 
     def estimate_center_line_clean(self, long_side, short_side):
         long_bound =  TrackBoundary(long_side)
