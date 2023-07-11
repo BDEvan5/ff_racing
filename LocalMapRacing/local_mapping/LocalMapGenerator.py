@@ -56,8 +56,8 @@ class LocalMapGenerator:
         # long_bound.plot_line()
         # short_bound.plot_line()
 
-        # plt.show()
-        plt.pause(0.0001)
+        plt.show()
+        # plt.pause(0.0001)
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
         self.counter += 1
@@ -141,15 +141,21 @@ class LocalMapGenerator:
 
         plt.plot(long_side[:, 0], long_side[:, 1], '.', markersize=10, color="#20bf6b")
         plt.plot(short_side[:, 0], short_side[:, 1], '.', markersize=10, color="#20bf6b")
-        plt.plot(0, 0, '.', markersize=12, color='red')
+
+        plt.plot(0, 0, 'x', markersize=14, color='red')
 
         long_bound =  TrackBoundary(long_side)
         short_bound = TrackBoundary(short_side)
+        plt.plot(long_bound.points[0, 0], long_bound.points[0, 1], '.', markersize=20, color="#20bf6b")
+        plt.plot(short_bound.points[0, 0], short_bound.points[0, 1], '.', markersize=20, color="#20bf6b")
+
+        long_bound.plot_line()
+        short_bound.plot_line()
         
         center_pt = np.zeros(2)
         center_pt[0] = -1 # start before beginning
         step_size = 0.6
-        max_pts = 40
+        max_pts = 100
         end_threshold = 0.1
         theta = 0
         long_points, short_points = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
@@ -159,16 +165,23 @@ class LocalMapGenerator:
         through_positive_corner = False
         ready_to_extend_line = False
         for i in range(max_pts):
+            plt.plot(center_pt[0], center_pt[1], '.', color='red', markersize=10)
             long_pt, max_long_s = long_bound.find_closest_point(center_pt, max_long_s)
             short_pt, max_short_s = short_bound.find_closest_point(center_pt, max_short_s)
 
             line_center = (long_pt + short_pt) / 2
             center_pts[i] = line_center
 
+            if np.all(np.isclose(long_pt, long_points[i-1])) and np.all(np.isclose(short_pt, short_points[i-1])):
+                print("Adding redundant points -- > move to projection")
+                ready_to_extend_line = True
+                i -= 4 # remove last two points
+                break
+
             if max_long_s < 0 or max_short_s < 0:
-                center_pt[0] += 0.2
+                center_pt[0] += 0.3
                 z += 1
-                print(f"Too early --> moving on: {i}")
+                print(f"{max_long_s} - {max_short_s} :: Too early --> moving on: {i}")
                 continue
 
             if max_short_s > 0.95:
@@ -180,7 +193,7 @@ class LocalMapGenerator:
                 n_diff = long_pt - short_pt
                 proposed_track_heading = np.arctan2(n_diff[1], n_diff[0]) - np.pi/2
                 d_track_heading = proposed_track_heading - previous_edge_heading
-                print(f"{i} -> d_head {d_track_heading} --> Curvature: {center_curvature}")
+                # print(f"{i} -> d_head {d_track_heading} --> Curvature: {center_curvature}")
 
                 if d_track_heading > 0:
                     through_positive_corner = True
@@ -201,6 +214,7 @@ class LocalMapGenerator:
             long_distance = np.linalg.norm(long_pt - long_bound.points[-1])
             short_distance = np.linalg.norm(short_pt - short_bound.points[-1])
             if long_distance < end_threshold and short_distance < end_threshold:
+                print(f"Breaking because of long and short distances")
                 break
 
             n_diff = long_pt - short_pt
@@ -241,6 +255,7 @@ class LocalMapGenerator:
             ready_to_extend_line = True
             i = 0
             z = 0
+            plt.show()
 
         k = 0
         if ready_to_extend_line:
@@ -252,11 +267,12 @@ class LocalMapGenerator:
                 previous_edge_heading = np.arctan2(previous_edge_diff[1], previous_edge_diff[0])
                 nvec_angle = previous_edge_heading + np.pi/2
                 short_pt = long_pt - TRACK_WIDTH * np.array([np.cos(nvec_angle), np.sin(nvec_angle)])
-                print(f"New proposed point: {short_pt}")
+                # print(f"New proposed point: {short_pt}")
 
                 new_line = [short_pt, long_pt]
                 old_line = [long_points[k-1], short_points[k-1]]
                 if do_lines_intersect(new_line, old_line):
+                    print(f"Lines intersect: Move on....")
                     break
 
                 long_points[k] = long_pt
@@ -264,6 +280,7 @@ class LocalMapGenerator:
                 
                 long_distance = np.linalg.norm(long_pt - long_bound.points[-1])
                 if long_distance < end_threshold:
+                    print(f"Breaking long distance")
                     break
 
                 n_diff = long_pt - short_pt
@@ -392,14 +409,11 @@ def calculate_curvature(pts):
     
 
 class TrackBoundary:
-    def __init__(self, points) -> None:
-        # count1 = np.sum(np.where(points> 0))
-        # count2 = np.sum(np.where(points< 0))
-        # dists = np.linalg.norm(points - np.zeros(2), axis=1)
-        # if dists[0] > dists[-1]:
-
+    def __init__(self, points) -> None:        
+        print(f"Pts start: {points[0,0]} --> end: {points[-1,0]}")
         if points[0, 0] > points[-1, 0]:
             self.points = np.flip(points, axis=0)
+            print(f"FLIPPED :: New Pts start: {self.points[0,0]} --> end: {self.points[-1,0]}")
         else:
             self.points = points
 
@@ -415,8 +429,11 @@ class TrackBoundary:
 
         closest_t = optimize.fmin(dist_to_p, x0=t_guess, args=(self.tck, pt), disp=False)
         if closest_t < 0:
+            print(f"Guess, {t_guess}; Closest_t {closest_t}, Previous {previous_maximum}")
             return self.points[0], closest_t
         t_pt = max(closest_t, previous_maximum)
+
+        print(f"Guess, {t_guess}; Closest_t {closest_t}, Previous {previous_maximum}")
 
         interp_return = interpolate.splev(t_pt, self.tck, ext=3)
         closest_pt = np.array(interp_return).T
