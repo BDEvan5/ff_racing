@@ -87,17 +87,15 @@ class LocalMapGenerator:
 
         smoothing_s = 0.5
         n_pts = int(short_length / POINT_SEP_DISTANCE)
-        # short_side = interpolate_track(short_pts, n_pts*2, 0.01)
         short_side = interpolate_track_new(short_pts, None, smoothing_s)
-        # short_side = interpolate_track_new(short_side, n_pts*2, smoothing_s)
         short_side = interpolate_track_new(short_side, n_pts*2, 0)
-        # short_side = interpolate_track_new(short_pts, n_pts*2, smoothing_s)
 
         n_pts = int(long_length / POINT_SEP_DISTANCE)
-        # long_side = interpolate_track(long_pts, n_pts*2, 0.01)
         long_side = interpolate_track_new(long_pts, None, smoothing_s)
-        # long_side = interpolate_track_new(long_side, n_pts*2, smoothing_s)
         long_side = interpolate_track_new(long_side, n_pts*2, 0)
+        #NOTE: the double interpolation ensures that the lengths are correct.
+        # the first step smooths the points and the second step ensures the correct spacing.
+        # TODO: this could be achieved using the same tck and just recalculating the s values based on the new lengths. Do this for computational speedup.
 
         return long_side, short_side
     
@@ -134,8 +132,7 @@ class LocalMapGenerator:
         # short_bound.plot_line()
         
         center_pt = np.zeros(2)
-        # center_pt[1] = 0.6
-        step_size = 0.4
+        step_size = 0.6
         theta = 0
         left_pts = []
         right_pts = []
@@ -158,30 +155,25 @@ class LocalMapGenerator:
             new_theta = heading - np.pi/2
             d_theta = new_theta - theta
             theta = new_theta
-            # d_theta = 0.3
-            # theta = np.clip(heading - np.pi/2, theta - d_theta, theta + d_theta)
-            # print(theta)
 
             line_center = (long_pt + short_pt) / 2
-            # adjusted_line_center = line_center - d_theta * 5 * np.array([np.cos(heading), np.sin(heading)])
-            if d_theta > 0.1:
-                adjusted_line_center = (short_pt + line_center) / 2
-                adjusted_line_center = (short_pt + adjusted_line_center) / 2
-            elif d_theta < -0.1:
-                adjusted_line_center = (long_pt + line_center) / 2
-                adjusted_line_center = (long_pt + adjusted_line_center) / 2
+            weighting = np.clip(abs(d_theta) / 0.2, 0, 0.8)
+            print(f"Weighting: {weighting}")
+            if d_theta > 0:
+                adjusted_line_center = (short_pt * (weighting) + line_center * (1- weighting)) 
             else:
-                adjusted_line_center = line_center
-            
-            center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
+                adjusted_line_center = (long_pt * (weighting) + line_center * (1- weighting)) 
 
-            # center_pt = center_pt + step_size * np.array([np.cos(theta), np.sin(theta)])
-            # center_pt -= np.sign(d_theta) * np.abs(d_theta) **2 * np.array([np.cos(heading), np.sin(heading)])
-            # center_pt -= d_theta * 1.5 * np.array([np.cos(heading), np.sin(heading)])
+            print(f"Line c: {line_center} --> adjusted: {adjusted_line_center}")
+
+            center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
 
             plt.plot(center_pt[0], center_pt[1], '*', color='blue', markersize=10)
             plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
             plt.plot(adjusted_line_center[0], adjusted_line_center[1], '*', color='purple', markersize=10)
+            c_xs = [adjusted_line_center[0], center_pt[0]]
+            c_ys = [adjusted_line_center[1], center_pt[1]]
+            plt.plot(c_xs, c_ys, '-', color='purple')
 
             plt.plot(long_pt[0], long_pt[1], 'x', color='black', markersize=10)
             plt.plot(short_pt[0], short_pt[1], 'x', color='black', markersize=10)
