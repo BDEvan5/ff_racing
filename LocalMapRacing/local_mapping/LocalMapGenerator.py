@@ -30,13 +30,21 @@ class LocalMapGenerator:
 
         pts, pt_distances, inds = self.extract_track_lines(xs_f, ys_f)
         long_side, short_side = self.extract_boundaries(pts, pt_distances, inds)
-        track = self.estimate_center_line(long_side, short_side, xs=xs_f, ys=ys_f)
+        # track = self.estimate_center_line_devel(long_side, short_side, xs=xs_f, ys=ys_f)
+        left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
+        true_center_line = (left_pts + right_pts) / 2
+        # track = self.build_true_track(left_epts, right_pts)
+        smooth_track = self.build_smooth_track(left_pts, right_pts)
         # track = self.project_side_to_track(long_side)
 
-        local_map = PlotLocalMap(track)
+        local_map = PlotLocalMap(smooth_track)
         # lm = LocalMap(track)
         local_map.plot_local_map(xs=xs_f, ys=ys_f)
+
+        plt.plot(left_pts[:, 0], left_pts[:, 1], 'x', color='black', markersize=10)
+        plt.plot(right_pts[:, 0], right_pts[:, 1], 'x', color='black', markersize=10)
         
+        plt.plot(true_center_line[:, 0], true_center_line[:, 1], '*', color='green', markersize=10)
 
 
         plt.show()
@@ -116,7 +124,7 @@ class LocalMapGenerator:
 
         return track
 
-    def estimate_center_line(self, long_side, short_side, xs=None, ys=None):
+    def estimate_center_line_devel(self, long_side, short_side, xs=None, ys=None):
         plt.figure(1)
         plt.clf()
         if xs is not None and ys is not None:
@@ -127,9 +135,7 @@ class LocalMapGenerator:
         plt.plot(0, 0, '.', markersize=12, color='red')
 
         long_bound =  TrackBoundary(long_side)
-        # long_bound.plot_line()
         short_bound = TrackBoundary(short_side)
-        # short_bound.plot_line()
         
         center_pt = np.zeros(2)
         step_size = 0.6
@@ -185,6 +191,78 @@ class LocalMapGenerator:
         plt.axis('equal')
         plt.show()
 
+    def estimate_center_line_clean(self, long_side, short_side):
+        long_bound =  TrackBoundary(long_side)
+        short_bound = TrackBoundary(short_side)
+        
+        center_pt = np.zeros(2)
+        step_size = 0.6
+        theta = 0
+        left_pts = []
+        right_pts = []
+        at_the_end = False
+        while not at_the_end and len(left_pts) < 30:
+            long_pt = long_bound.find_closest_point(center_pt)
+            short_pt = short_bound.find_closest_point(center_pt)
+
+            left_pts.append(long_pt)
+            right_pts.append(short_pt)
+            
+            long_distance = np.linalg.norm(long_pt - long_bound.points[-1])
+            short_distance = np.linalg.norm(short_pt - short_bound.points[-1])
+            threshold = 0.1
+            if long_distance < threshold and short_distance < threshold:
+                at_the_end = True
+
+            n_diff = long_pt - short_pt
+            heading = np.arctan2(n_diff[1], n_diff[0])
+            new_theta = heading - np.pi/2
+            d_theta = new_theta - theta
+            theta = new_theta
+
+            line_center = (long_pt + short_pt) / 2
+            weighting = np.clip(abs(d_theta) / 0.2, 0, 0.8)
+            if d_theta > 0:
+                adjusted_line_center = (short_pt * (weighting) + line_center * (1- weighting)) 
+            else:
+                adjusted_line_center = (long_pt * (weighting) + line_center * (1- weighting)) 
+
+            center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
+
+        left_pts = np.array(left_pts)
+        right_pts = np.array(right_pts)
+
+        return left_pts, right_pts
+
+    # def build_true_track(self, left_pts, right_pts):
+    #     c_line = (left_pts + right_pts) / 2
+    #     ws = np.ones_like(c_line) * np.linalg.norm(c_line - left_pts, axis=1)[:, None]
+
+    #     track = np.concatenate((c_line, ws), axis=1)
+
+    #     return track
+
+    def build_smooth_track(self, left_pts, right_pts):
+        c_line = np.zeros_like(left_pts)
+        c_line[0] = (left_pts[0] + right_pts[0]) / 2
+        search_size = 2
+        for i in range(1, len(left_pts)):
+            diff = (left_pts[i-1] - right_pts[i-1])
+            heading = np.arctan2(diff[1], diff[0])
+            new_theta = heading - np.pi/2
+
+            line1 = [left_pts[i], right_pts[i]]
+            line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(new_theta), np.sin(new_theta)]) * search_size]
+
+            intersection = calculate_intersection(line1, line2)
+            c_line[i] = intersection
+
+        ws_1 = np.linalg.norm(c_line - left_pts, axis=1)[:, None]
+        ws_2 = np.linalg.norm(c_line - right_pts, axis=1)[:, None]
+
+        track = np.concatenate((c_line, ws_1, ws_2), axis=1)
+
+        return track
 
 
 from scipy import optimize
@@ -228,6 +306,29 @@ def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
     s = np.concatenate(s)
     return spatial.distance.euclidean(p, s)
 
+def calculate_intersection(line1, line2):
+    x1, y1 = line1[0]
+    x2, y2 = line1[1]
+    x3, y3 = line2[0]
+    x4, y4 = line2[1]
+
+    # Calculate the slopes of the lines
+    slope1 = (y2 - y1) / (x2 - x1) if x2 - x1 != 0 else float('inf')
+    slope2 = (y4 - y3) / (x4 - x3) if x4 - x3 != 0 else float('inf')
+
+    # Check if the lines are parallel
+    if slope1 == slope2:
+        return None
+
+    # Calculate the y-intercepts of the lines
+    intercept1 = y1 - slope1 * x1
+    intercept2 = y3 - slope2 * x3
+
+    # Calculate the intersection point (x, y)
+    x = (intercept2 - intercept1) / (slope1 - slope2) if slope1 != float('inf') and slope2 != float('inf') else float('inf')
+    y = slope1 * x + intercept1 if slope1 != float('inf') else slope2 * x + intercept2
+
+    return np.array([x, y])
 
 if __name__ == "__main__":
     pass
