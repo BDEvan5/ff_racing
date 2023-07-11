@@ -114,6 +114,7 @@ class LocalMap:
 
     def check_nvec_crossing(self):
         crossing_horizon = min(5, len(self.track)//2 -1)
+        if crossing_horizon < 2: return False
         crossing = tph.check_normals_crossing.check_normals_crossing(self.track, self.nvecs, crossing_horizon)
 
         return crossing

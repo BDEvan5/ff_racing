@@ -6,6 +6,9 @@ np.set_printoptions(precision=4)
 from LocalMapRacing.local_mapping.local_map_utils import *
 from LocalMapRacing.local_mapping.LocalMap import LocalMap, PlotLocalMap
 
+from scipy import optimize
+from scipy import spatial
+from numba import njit
 
 DISTNACE_THRESHOLD = 1.4 # distance in m for an exception
 TRACK_WIDTH = 1.9 # use fixed width
@@ -30,12 +33,9 @@ class LocalMapGenerator:
 
         pts, pt_distances, inds = self.extract_track_lines(xs_f, ys_f)
         long_side, short_side = self.extract_boundaries(pts, pt_distances, inds)
-        # track = self.estimate_center_line_devel(long_side, short_side, xs=xs_f, ys=ys_f)
         left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
         true_center_line = (left_pts + right_pts) / 2
-        # track = self.build_true_track(left_epts, right_pts)
         smooth_track = self.build_smooth_track(left_pts, right_pts)
-        # track = self.project_side_to_track(long_side)
 
         local_map = PlotLocalMap(smooth_track)
         # lm = LocalMap(track)
@@ -46,9 +46,7 @@ class LocalMapGenerator:
         
         plt.plot(true_center_line[:, 0], true_center_line[:, 1], '*', color='green', markersize=10)
 
-
         plt.show()
-
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
         self.counter += 1
@@ -197,26 +195,25 @@ class LocalMapGenerator:
         
         center_pt = np.zeros(2)
         step_size = 0.6
+        max_pts = 30
+        end_threshold = 0.1
         theta = 0
-        left_pts = []
-        right_pts = []
         at_the_end = False
-        while not at_the_end and len(left_pts) < 30:
+        left_pts, right_pts = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
+        for i in range(max_pts):
             long_pt = long_bound.find_closest_point(center_pt)
             short_pt = short_bound.find_closest_point(center_pt)
 
-            left_pts.append(long_pt)
-            right_pts.append(short_pt)
+            left_pts[i] = long_pt
+            right_pts[i] = short_pt
             
             long_distance = np.linalg.norm(long_pt - long_bound.points[-1])
             short_distance = np.linalg.norm(short_pt - short_bound.points[-1])
-            threshold = 0.1
-            if long_distance < threshold and short_distance < threshold:
-                at_the_end = True
+            if long_distance < end_threshold and short_distance < end_threshold:
+                break
 
             n_diff = long_pt - short_pt
-            heading = np.arctan2(n_diff[1], n_diff[0])
-            new_theta = heading - np.pi/2
+            new_theta = np.arctan2(n_diff[1], n_diff[0]) - np.pi/2
             d_theta = new_theta - theta
             theta = new_theta
 
@@ -229,18 +226,10 @@ class LocalMapGenerator:
 
             center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
 
-        left_pts = np.array(left_pts)
-        right_pts = np.array(right_pts)
+        left_pts = np.array(left_pts[:i+1])
+        right_pts = np.array(right_pts[:i+1])
 
         return left_pts, right_pts
-
-    # def build_true_track(self, left_pts, right_pts):
-    #     c_line = (left_pts + right_pts) / 2
-    #     ws = np.ones_like(c_line) * np.linalg.norm(c_line - left_pts, axis=1)[:, None]
-
-    #     track = np.concatenate((c_line, ws), axis=1)
-
-    #     return track
 
     def build_smooth_track(self, left_pts, right_pts):
         c_line = np.zeros_like(left_pts)
@@ -255,6 +244,10 @@ class LocalMapGenerator:
             line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(new_theta), np.sin(new_theta)]) * search_size]
 
             intersection = calculate_intersection(line1, line2)
+            if intersection is None: # or intersection[0] == 1e9:
+                print(f"Line 1: {line1}")
+                print(f"Line 2: {line2}")
+                raise ValueError("No intersection found")
             c_line[i] = intersection
 
         ws_1 = np.linalg.norm(c_line - left_pts, axis=1)[:, None]
@@ -265,8 +258,6 @@ class LocalMapGenerator:
         return track
 
 
-from scipy import optimize
-from scipy import spatial
 class TrackBoundary:
     def __init__(self, points) -> None:
         dists = np.linalg.norm(points - np.zeros(2), axis=1)
@@ -284,28 +275,20 @@ class TrackBoundary:
         dists = np.linalg.norm(self.points - pt, axis=1)
         closest_ind = np.argmin(dists)
         t_guess = self.cs[closest_ind] / self.cs[-1]
-        # print(f"Closest ind: {closest_ind}, cs[ind]: {self.cs[closest_ind]};; guess pt: {self.points[closest_ind]}")
 
-        # print(f"Init pt: {pt}, t_guess: {t_guess}")
         closest_t = optimize.fmin(dist_to_p, x0=t_guess, args=(self.tck, pt), disp=False)
 
         closest_pt = np.array(interpolate.splev(closest_t, self.tck, ext=3)).T[0]
-        # print(f"Closest t: {closest_t} --> closest pt: {closest_pt}")
 
         return closest_pt
         
-    def plot_line(self):
-        ss = np.linspace(0, 1, 100)
-        new_pts = np.array(interpolate.splev(ss, self.tck)).T
-        plt.plot(new_pts[:, 0], new_pts[:, 1])
-        plt.plot(self.points[:, 0], self.points[:, 1], 'x', color='blue', markersize=10)
-
 
 def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
     s = interpolate.splev(t_glob, path)
     s = np.concatenate(s)
     return spatial.distance.euclidean(p, s)
 
+# @njit(cache=True)
 def calculate_intersection(line1, line2):
     x1, y1 = line1[0]
     x2, y2 = line1[1]
@@ -313,8 +296,15 @@ def calculate_intersection(line1, line2):
     x4, y4 = line2[1]
 
     # Calculate the slopes of the lines
-    slope1 = (y2 - y1) / (x2 - x1) if x2 - x1 != 0 else float('inf')
-    slope2 = (y4 - y3) / (x4 - x3) if x4 - x3 != 0 else float('inf')
+    if x2 - x1 != 0:
+        slope1 = (y2 - y1) / (x2 - x1)  
+    else:
+        slope1 = 1e9
+    
+    if x4 - x3!= 0:
+        slope2 = (y4 - y3) / (x4 - x3)
+    else:
+        slope2 = 1e9
 
     # Check if the lines are parallel
     if slope1 == slope2:
@@ -325,8 +315,15 @@ def calculate_intersection(line1, line2):
     intercept2 = y3 - slope2 * x3
 
     # Calculate the intersection point (x, y)
-    x = (intercept2 - intercept1) / (slope1 - slope2) if slope1 != float('inf') and slope2 != float('inf') else float('inf')
-    y = slope1 * x + intercept1 if slope1 != float('inf') else slope2 * x + intercept2
+    if slope1 == 1e9:
+        x = x1
+        y = slope2 * x + intercept2
+    if slope2 == 1e9:
+        x = x3
+        y = slope1 * x + intercept1
+    else:
+        x = (intercept2 - intercept1) / (slope1 - slope2)
+        y = slope1 * x + intercept1 # can use either
 
     return np.array([x, y])
 
