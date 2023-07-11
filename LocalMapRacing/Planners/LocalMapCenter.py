@@ -56,6 +56,7 @@ class LocalMapCenter:
             print(f"Counter: {self.counter}")
 
         self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
+        print(f"{self.counter}: state: {obs['full_states'][0][:2]}")
         # self.local_map.plot_local_map()
 
         # plt.pause(0.000001)

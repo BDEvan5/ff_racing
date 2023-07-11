@@ -33,7 +33,8 @@ class LocalMapGenerator:
 
         pts, pt_distances, inds = self.extract_track_lines(xs_f, ys_f)
         long_side, short_side = self.extract_boundaries(pts, pt_distances, inds)
-        left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
+        left_pts, right_pts = self.estimate_center_line_devel(long_side, short_side, xs_f, ys_f)
+        # left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
         true_center_line = (left_pts + right_pts) / 2
         smooth_track = self.build_smooth_track(left_pts, right_pts)
 
@@ -45,6 +46,15 @@ class LocalMapGenerator:
         plt.plot(right_pts[:, 0], right_pts[:, 1], 'x', color='black', markersize=10)
         
         plt.plot(true_center_line[:, 0], true_center_line[:, 1], '*', color='green', markersize=10)
+
+        for i in range(left_pts.shape[0]):
+            plt.plot([left_pts[i, 0], right_pts[i, 0]], [left_pts[i, 1], right_pts[i, 1]], color='black', linewidth=1)
+
+
+        long_bound =  TrackBoundary(long_side)
+        short_bound = TrackBoundary(short_side)
+        long_bound.plot_line()
+        short_bound.plot_line()
 
         plt.show()
 
@@ -123,7 +133,7 @@ class LocalMapGenerator:
         return track
 
     def estimate_center_line_devel(self, long_side, short_side, xs=None, ys=None):
-        plt.figure(1)
+        plt.figure(2)
         plt.clf()
         if xs is not None and ys is not None:
             plt.plot(xs, ys, '.', color='#45aaf2', alpha=0.1)
@@ -136,23 +146,32 @@ class LocalMapGenerator:
         short_bound = TrackBoundary(short_side)
         
         center_pt = np.zeros(2)
+        center_pt[0] = -1 # start before beginning
         step_size = 0.6
+        max_pts = 30
+        end_threshold = 0.1
         theta = 0
-        left_pts = []
-        right_pts = []
-        at_the_end = False
-        while not at_the_end and len(left_pts) < 20:
-            long_pt = long_bound.find_closest_point(center_pt)
-            short_pt = short_bound.find_closest_point(center_pt)
+        left_pts, right_pts = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
+        max_long_s, max_short_s = 0, 0
+        z = 0
+        for i in range(max_pts):
+            long_pt, max_long_s = long_bound.find_closest_point(center_pt, max_long_s)
+            short_pt, max_short_s = short_bound.find_closest_point(center_pt, max_short_s)
 
-            left_pts.append(long_pt)
-            right_pts.append(short_pt)
+            if max_long_s < 0 or max_short_s < 0:
+                center_pt[0] += 0.1
+                z += 1
+                print(f"Too early --> moving on: {i}")
+                continue
+
+            left_pts[i] = long_pt
+            right_pts[i] = short_pt
+
             
             long_distance = np.linalg.norm(long_pt - long_bound.points[-1])
             short_distance = np.linalg.norm(short_pt - short_bound.points[-1])
-            threshold = 0.1
-            if long_distance < threshold and short_distance < threshold:
-                at_the_end = True
+            if long_distance < end_threshold and short_distance < end_threshold:
+                break
 
             n_diff = long_pt - short_pt
             heading = np.arctan2(n_diff[1], n_diff[0])
@@ -160,15 +179,18 @@ class LocalMapGenerator:
             d_theta = new_theta - theta
             theta = new_theta
 
+            if i == z: # first point
+                d_theta = - np.abs(d_theta) * np.sign(theta)
+
             line_center = (long_pt + short_pt) / 2
             weighting = np.clip(abs(d_theta) / 0.2, 0, 0.8)
-            print(f"Weighting: {weighting}")
+            # print(f"Weighting: {weighting}")
             if d_theta > 0:
                 adjusted_line_center = (short_pt * (weighting) + line_center * (1- weighting)) 
             else:
                 adjusted_line_center = (long_pt * (weighting) + line_center * (1- weighting)) 
 
-            print(f"Line c: {line_center} --> adjusted: {adjusted_line_center}")
+            # print(f"Line c: {line_center} --> adjusted: {adjusted_line_center}")
 
             center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
 
@@ -187,11 +209,18 @@ class LocalMapGenerator:
 
 
         plt.axis('equal')
-        plt.show()
+        # plt.show()
+        plt.pause(0.00001)
+        left_pts = np.array(left_pts[z:i+1])
+        right_pts = np.array(right_pts[z:i+1])
+
+        return left_pts, right_pts
 
     def estimate_center_line_clean(self, long_side, short_side):
         long_bound =  TrackBoundary(long_side)
         short_bound = TrackBoundary(short_side)
+        long_bound.plot_line()
+        short_bound.plot_line()
         
         center_pt = np.zeros(2)
         step_size = 0.6
@@ -203,6 +232,8 @@ class LocalMapGenerator:
         for i in range(max_pts):
             long_pt, max_long_s = long_bound.find_closest_point(center_pt, max_long_s)
             short_pt, max_short_s = short_bound.find_closest_point(center_pt, max_short_s)
+
+
 
             left_pts[i] = long_pt
             right_pts[i] = short_pt
@@ -244,6 +275,7 @@ class LocalMapGenerator:
             line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(new_theta), np.sin(new_theta)]) * search_size]
 
             intersection = calculate_intersection(line1, line2)
+            # print(f"Intersection: {intersection}")
             if intersection is None: # or intersection[0] == 1e9:
                 print(f"Line 1: {line1}")
                 print(f"Line 2: {line2}")
@@ -260,8 +292,12 @@ class LocalMapGenerator:
 
 class TrackBoundary:
     def __init__(self, points) -> None:
-        dists = np.linalg.norm(points - np.zeros(2), axis=1)
-        if dists[0] > dists[-1]:
+        # count1 = np.sum(np.where(points> 0))
+        # count2 = np.sum(np.where(points< 0))
+        # dists = np.linalg.norm(points - np.zeros(2), axis=1)
+        # if dists[0] > dists[-1]:
+
+        if points[0, 0] > points[-1, 0]:
             self.points = np.flip(points, axis=0)
         else:
             self.points = points
@@ -277,12 +313,21 @@ class TrackBoundary:
         t_guess = self.cs[closest_ind] / self.cs[-1]
 
         closest_t = optimize.fmin(dist_to_p, x0=t_guess, args=(self.tck, pt), disp=False)
+        if closest_t < 0:
+            return self.points[0], closest_t
         t_pt = max(closest_t, previous_maximum)
 
-        closest_pt = np.array(interpolate.splev(t_pt, self.tck, ext=3)).T[0]
+        interp_return = interpolate.splev(t_pt, self.tck, ext=3)
+        closest_pt = np.array(interp_return).T
+        if len(closest_pt.shape) > 1:
+            closest_pt = closest_pt[0]
 
         return closest_pt, t_pt
         
+    def plot_line(self):
+        plt.plot(self.points[:, 0], self.points[:, 1], '--', color="#20bf6b")
+        plt.plot(self.points[0, 0], self.points[0, 1], "o", color='pink')
+
 
 def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
     s = interpolate.splev(t_glob, path)
