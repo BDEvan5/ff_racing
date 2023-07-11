@@ -148,7 +148,7 @@ class LocalMapGenerator:
         center_pt = np.zeros(2)
         center_pt[0] = -1 # start before beginning
         step_size = 0.6
-        max_pts = 30
+        max_pts = 40
         end_threshold = 0.1
         theta = 0
         left_pts, right_pts = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
@@ -159,14 +159,13 @@ class LocalMapGenerator:
             short_pt, max_short_s = short_bound.find_closest_point(center_pt, max_short_s)
 
             if max_long_s < 0 or max_short_s < 0:
-                center_pt[0] += 0.1
+                center_pt[0] += 0.2
                 z += 1
                 print(f"Too early --> moving on: {i}")
                 continue
 
             left_pts[i] = long_pt
             right_pts[i] = short_pt
-
             
             long_distance = np.linalg.norm(long_pt - long_bound.points[-1])
             short_distance = np.linalg.norm(short_pt - short_bound.points[-1])
@@ -267,9 +266,11 @@ class LocalMapGenerator:
         c_line[0] = (left_pts[0] + right_pts[0]) / 2
         search_size = 2
         for i in range(1, len(left_pts)):
+            diff = (left_pts[i-1] - right_pts[i-1])
+            theta_1 = np.arctan2(diff[1], diff[0]) - np.pi/2
             diff = (left_pts[i] - right_pts[i])
-            heading = np.arctan2(diff[1], diff[0])
-            new_theta = heading - np.pi/2
+            theta_2 = np.arctan2(diff[1], diff[0]) - np.pi/2
+            new_theta = (theta_1 + theta_2) / 2
 
             line1 = [left_pts[i], right_pts[i]]
             line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(new_theta), np.sin(new_theta)]) * search_size]
