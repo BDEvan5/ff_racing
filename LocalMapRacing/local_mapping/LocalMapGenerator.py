@@ -23,7 +23,7 @@ class LocalMapGenerator:
         self.angles = np.linspace(-fov2, fov2, 1080)
         self.coses = np.cos(self.angles)
         self.sines = np.sin(self.angles)
-        self.xs, self.ys = None, None 
+        self.scan_xs, self.scan_ys = None, None 
 
         self.local_map_data_path = path + f"LocalMapData_{map_name.upper()}/"
         ensure_path_exists(self.local_map_data_path)
@@ -35,14 +35,17 @@ class LocalMapGenerator:
         self.max_s_2 = 0
         self.boundary_1 = None
         self.boundary_2 = None
+        self.boundary_extension_1 = None
+        self.boundary_extension_2 = None
+        self.smooth_track = None
 
     def generate_line_local_map(self, scan, save=True):
-        xs_f = self.coses * scan
-        ys_f = self.sines * scan
+        self.scan_xs = self.coses * scan
+        self.scan_ys = self.sines * scan
 
-        pts, pt_distances, inds = self.extract_track_lines(xs_f, ys_f)
+        pts, pt_distances, inds = self.extract_track_lines()
         self.extract_boundaries(pts, pt_distances, inds)
-        self.estimate_center_line_dual_boundary(xs_f, ys_f)
+        self.estimate_center_line_dual_boundary()
         self.extend_center_line_projection()
         # left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
 
@@ -52,6 +55,9 @@ class LocalMapGenerator:
         smooth_track = self.build_smooth_track()
         local_map = PlotLocalMap(smooth_track)
         # lm = LocalMap(track)
+        self.smooth_track = local_map
+        self.plot_local_map_generation()
+
 
         # local_map.plot_local_map(xs=xs_f, ys=ys_f)
 
@@ -82,8 +88,8 @@ class LocalMapGenerator:
 
         return track
 
-    def extract_track_lines(self, xs, ys):
-        pts = np.hstack((xs[:, None], ys[:, None]))
+    def extract_track_lines(self):
+        pts = np.hstack((self.scan_xs[:, None], self.scan_ys[:, None]))
         pts = pts[pts[:, 0] > -2] # remove points behind the car
         pts = pts[np.logical_or(pts[:, 0] > 0, np.abs(pts[:, 1]) < 2)] # remove points behind the car or too far away
         pt_distances = np.linalg.norm(pts[1:] - pts[:-1], axis=1)
@@ -162,18 +168,7 @@ class LocalMapGenerator:
 
         return track
 
-    def estimate_center_line_dual_boundary(self, xs=None, ys=None):
-        if PLOT_DEVEL:
-            plt.figure(2)
-            plt.clf()
-            plt.axis('equal')
-            if xs is not None and ys is not None:
-                plt.plot(xs, ys, '.', color='#45aaf2', alpha=0.1)
-            plt.plot(0, 0, 'x', markersize=14, color='red')
-
-            self.line_1.plot_line()
-            self.line_2.plot_line()
-
+    def estimate_center_line_dual_boundary(self):
         search_pt = [-1, 0]
         max_pts = 30
         end_threshold = 0.05
@@ -190,16 +185,6 @@ class LocalMapGenerator:
 
             line_center = (pt_1 + pt_2) / 2
             center_pts[i] = line_center
-
-            if PLOT_DEVEL:
-                plt.plot(pt_1[0], pt_1[1], 'x', color='black', markersize=10)
-                plt.plot(pt_2[0], pt_2[1], 'x', color='black', markersize=10)
-                xs = [pt_1[0], pt_2[0]]
-                ys = [pt_1[1], pt_2[1]]
-                plt.plot(xs, ys, '-', color='black')
-
-                plt.plot(search_pt[0], search_pt[1], '*', color='blue', markersize=10, alpha=0.2)
-                # plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
 
             if np.all(np.isclose(pt_1, self.boundary_1[i-1])) and np.all(np.isclose(pt_2, self.boundary_2[i-1])): 
                 print(f"{i}-> Adding redundant points -- > move to projection")
@@ -219,10 +204,6 @@ class LocalMapGenerator:
         if i == max_pts - 1:
             print(f"Reached max number of points")
 
-        if PLOT_DEVEL:
-            plt.axis('equal')
-            plt.pause(0.00001)
-
         self.boundary_1 = self.boundary_1[:i+1]
         self.boundary_2 = self.boundary_2[:i+1]
 
@@ -230,32 +211,20 @@ class LocalMapGenerator:
             print(f"Only {len(self.boundary_1)} points found. This is a problem")
 
     def extend_center_line_projection(self):
-        # Extends the center line using a single boundary.
-
-        # Check if extension is required.
         if self.max_s_1 > 0.99 and self.max_s_2 > 0.99:
+            self.boundary_extension_1 = None
+            self.boundary_extension_2 = None
             return # no extension required
         
         true_center_line = (self.boundary_1 + self.boundary_2) / 2
         dists = np.linalg.norm(np.diff(true_center_line, axis=0), axis=1)
-        print(dists)
-        threshold = 0.2
-        removal_n = np.sum(dists < threshold)
-        # removal_n = 3
+        center_point_threshold = 0.2
+        removal_n = np.sum(dists < center_point_threshold)
         print(f"Remove: {removal_n}")
-
-        plt.figure(2)
-        plt.plot(true_center_line[:-removal_n, 0], true_center_line[:-removal_n, 1], '*', color='orange', markersize=10)
-        plt.plot(true_center_line[-removal_n:, 0], true_center_line[-removal_n:, 1], '*', color='pink', markersize=10)
-        # plt.pause(0.00001)
 
         self.boundary_1 = self.boundary_1[:-removal_n]
         self.boundary_2 = self.boundary_2[:-removal_n]
         true_center_line = (self.boundary_1 + self.boundary_2) / 2
-
-        # center = LocalLine(true_center_line)
-        # l1 = LocalLine(self.boundary_1)
-        # l2 = LocalLine(self.boundary_2)
 
         if self.max_s_1 > self.max_s_2:
             projection_line = self.line_2
@@ -268,13 +237,16 @@ class LocalMapGenerator:
 
         _pt, current_s = projection_line.find_closest_point(boundary[-1], 0)
         print(f"Current_s: {current_s}")
-        if current_s > 0.85:
-            print(f"Current_s: {current_s} > 0.99")
+        length_remaining = (1-current_s[0]) * projection_line.cs[-1]
+        if length_remaining < 1:
+            self.boundary_extension_1 = None
+            self.boundary_extension_2 = None
+            print(f"length_remaining: {length_remaining} < 1 m")
             return # no extension required
 
-        step_size = 0.6
-        print(f"Lenth: {(1-current_s[0]) * projection_line.cs[-1]}")
+        step_size = 0.5
         n_pts = int((1-current_s[0]) * projection_line.cs[-1] / step_size + 1)
+        print(f"Length: {length_remaining}, n_pts: {n_pts}")
         new_boundary_points = projection_line.extract_line_portion(np.linspace(current_s[0], 1, n_pts))
         new_projection_line = LocalLine(new_boundary_points)
 
@@ -284,16 +256,47 @@ class LocalMapGenerator:
         extra_projected_boundary = new_projection_line.track + new_projection_line.nvecs * TRACK_WIDTH * direction
 
         if self.max_s_1 > self.max_s_2:
-            self.boundary_2 = np.append(self.boundary_2, new_projection_line.track, axis=0)
-            self.boundary_1 = np.append(self.boundary_1, extra_projected_boundary, axis=0)
+            self.boundary_extension_1 = extra_projected_boundary
+            self.boundary_extension_2 = new_projection_line.track
         else:
-            self.boundary_2 = np.append(self.boundary_2, extra_projected_boundary, axis=0)
-            self.boundary_1 = np.append(self.boundary_1, new_projection_line.track, axis=0)
+            self.boundary_extension_1 = new_projection_line.track
+            self.boundary_extension_2 = extra_projected_boundary
 
-        plt.plot(extra_center_line[:, 0], extra_center_line[:, 1], '-o', color='green')
-        plt.plot(extra_projected_boundary[:, 0], extra_projected_boundary[:, 1], '-o', color='black')
+        # remove last point since it has now been replaced.
+        self.boundary_1 = self.boundary_1[:-1]
+        self.boundary_2 = self.boundary_2[:-1]
 
-        # plt.show()
+    def plot_local_map_generation(self):
+        plt.figure(2)
+        plt.clf()
+
+        plt.plot(self.scan_xs, self.scan_ys, '.', color='#45aaf2', alpha=0.2)
+        plt.plot(0, 0, 'x', markersize=14, color='red')
+
+        self.line_1.plot_line()
+        self.line_2.plot_line()
+
+        true_center_line = (self.boundary_1 + self.boundary_2) / 2
+
+        plt.plot(true_center_line[:, 0], true_center_line[:, 1], '*', color='orange', markersize=10)
+        for i in range(len(self.boundary_1)):
+            xs = [self.boundary_1[i, 0], self.boundary_2[i, 0]]
+            ys = [self.boundary_1[i, 1], self.boundary_2[i, 1]]
+            plt.plot(xs, ys, '-x', color='black', markersize=10)
+        
+        if self.boundary_extension_1 is not None:
+            extended_true_center = (self.boundary_extension_1 + self.boundary_extension_2) / 2
+            plt.plot(extended_true_center[:, 0], extended_true_center[:, 1], '*', color='pink', markersize=10)
+
+            for i in range(len(self.boundary_extension_1)):
+                xs = [self.boundary_extension_1[i, 0], self.boundary_extension_2[i, 0]]
+                ys = [self.boundary_extension_1[i, 1], self.boundary_extension_2[i, 1]]
+                plt.plot(xs, ys, '-x', color='blue', markersize=10)
+
+        plt.plot(self.smooth_track.track[:, 0], self.smooth_track.track[:, 1], '-x', color='red', linewidth=2)
+
+        plt.axis('equal')
+        plt.show()
 
 
     def calculate_next_boundaries(self, pt_1, pt_2):
@@ -306,10 +309,6 @@ class LocalMapGenerator:
         search_pt_b = (pt_1 * (weighting) + line_center * (1- weighting)) 
         search_pt_a = search_pt_a + step_size * np.array([np.cos(theta), np.sin(theta)])
         search_pt_b = search_pt_b + step_size * np.array([np.cos(theta), np.sin(theta)])
-
-        if PLOT_DEVEL:
-            plt.plot(search_pt_a[0], search_pt_a[1], '.', color='red', markersize=10)
-            plt.plot(search_pt_b[0], search_pt_b[1], '.', color='red', markersize=10)
 
         pt_1_a, max_s_1_a = self.line_1.find_closest_point(search_pt_a, self.max_s_1, "Line1_a")
         pt_2_a, max_s_2_a = self.line_2.find_closest_point(search_pt_a, self.max_s_2, "Line2_a")
@@ -601,6 +600,8 @@ class LocalMapGenerator:
         track = np.concatenate((c_line, ws_1, ws_2), axis=1)
 
         return track
+
+
 
 def calculate_curvature(pts):
     d1 = pts[-1] - pts[-2]
