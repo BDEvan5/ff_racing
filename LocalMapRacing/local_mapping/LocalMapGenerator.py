@@ -15,7 +15,7 @@ TRACK_WIDTH = 1.9 # use fixed width
 POINT_SEP_DISTANCE = 0.8
 
 PLOT_DEVEL = True
-# PLOT_DEVEL = False
+PLOT_DEVEL = False
 
 class LocalMapGenerator:
     def __init__(self, path, map_name) -> None:
@@ -53,10 +53,10 @@ class LocalMapGenerator:
         track = np.concatenate([true_center_line, ws], axis=1)
 
         # plt.plot(xs_f[inds], ys_f[inds], 'x', color='red')
-        plt.plot(pts[inds, 0], pts[inds, 1], '*', color='red')
+        # plt.plot(pts[inds, 0], pts[inds, 1], '*', color='red')
         # plt.plot(pts[:, 0], pts[:, 1], '.', color='red')
 
-        plt.show()
+        # plt.show()
         local_map = PlotLocalMap(track)
 
         # smooth_track = self.build_smooth_track()
@@ -106,6 +106,28 @@ class LocalMapGenerator:
         min_ind = np.min(arr_inds) +1
         max_ind = np.max(arr_inds) + 1
 
+
+        line_1_pts = pts[:min_ind]
+        line_2_pts = pts[max_ind:]
+        i = 1
+        while (np.all(line_1_pts[:, 0] < -0.8) or np.all(np.abs(line_1_pts[:, 1]) > 2.5)) and i < len(inds):
+            print(f"Len(inds): {len(inds)} -- i: {i}")
+            min_ind2 = np.min(arr_inds[i:]) 
+            print(f"{i}: Line 1 problem: shift ind from {min_ind} to {min_ind2}")
+            line_1_pts = pts[min_ind+2:min_ind2]
+            min_ind = min_ind2
+            i += 1
+
+        line_2_pts = pts[max_ind:]
+        i = 1
+        while (np.all(line_1_pts[:, 0] < -0.8) or np.all(np.abs(line_1_pts[:, 1]) > 2.5)) and i < len(inds):
+            print(inds)
+            max_ind2 = np.max(arr_inds[:-i])
+            print(f"{i}: Line 2 problem: shift ind from {max_ind} to {max_ind2}")
+            line_1_pts = pts[max_ind2+2:max_ind]
+            max_ind = max_ind2
+            i += 1
+
         # plt.figure(5)
         # plt.plot(pts[:, 0], pts[:, 1], '.', color='blue', alpha=0.4)
 
@@ -120,27 +142,11 @@ class LocalMapGenerator:
         #     ys = [pt1[1], pt2[1]]
         #     plt.plot(xs, ys, color='pink', linewidth=3)
 
+        # plt.plot(line_1_pts[:, 0], line_1_pts[:, 1], '-x', color='red', markersize=10)
+        # plt.plot(line_2_pts[:, 0], line_2_pts[:, 1], '-x', color='red', markersize=10)
+
         # plt.axis('equal')
         # plt.show()
-
-        line_1_pts = pts[:min_ind]
-        # print(pts[inds])
-        # print(pts[inds+1])
-        i = 1
-        while np.all(line_1_pts[:, 0] < 0) or np.all(np.abs(line_1_pts[:, 1]) > 2.5):
-            print(inds)
-            min_ind2 = np.min(arr_inds[i:]) 
-            print(f"{i}: Line 1 problem: shift ind from {min_ind} to {min_ind2}")
-            line_1_pts = pts[min_ind+2:min_ind2]
-            print(line_1_pts)
-            min_ind = min_ind2
-            i += 1
-
-        line_2_pts = pts[max_ind:]
-        if np.all(line_2_pts[:, 0] < 0):
-            max_ind2 = np.max(arr_inds[:-1]) + 1
-            print(f"Line 2 problem: shift ind from {max_ind} to {max_ind2}")
-            line_1_pts = pts[max_ind2:max_ind]
 
         self.line_1 = TrackBoundary(line_1_pts, True)
         self.line_2 = TrackBoundary(line_2_pts, True)
