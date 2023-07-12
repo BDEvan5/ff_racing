@@ -54,8 +54,8 @@ class LocalMapGenerator:
         # line_1.plot_line()
         # line_2.plot_line()
 
-        plt.show()
-        # plt.pause(0.0001)
+        # plt.show()
+        plt.pause(0.0001)
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
         self.counter += 1
@@ -115,11 +115,11 @@ class LocalMapGenerator:
         line_1.plot_line()
         line_2.plot_line()
         
-        center_pt = np.zeros(2)
-        center_pt[0] = -1 # start before beginning
+        search_pt = np.zeros(2)
+        search_pt[0] = -1 # start before beginning
         step_size = 0.6
         max_pts = 20
-        end_threshold = 0.1
+        end_threshold = 0.05
         theta = 0
         boundary_1, boundary_2 = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
         center_pts = np.zeros((max_pts, 2))
@@ -128,18 +128,50 @@ class LocalMapGenerator:
         through_positive_corner = False
         ready_to_extend_line = False
         for i in range(max_pts):
-            plt.plot(center_pt[0], center_pt[1], '.', color='red', markersize=10)
-            pt_1, max_s_1 = line_1.find_closest_point(center_pt, max_s_1, "Line1")
-            pt_2, max_s_2 = line_2.find_closest_point(center_pt, max_s_2, "Line2")
+            # plt.plot(search_pt[0], search_pt[1], '.', color='red', markersize=10)
+            if i == 0:
+                # search_pt = center_pt
+                pt_1, max_s_1 = line_1.find_closest_point(search_pt, max_s_1, "Line1")
+                pt_2, max_s_2 = line_2.find_closest_point(search_pt, max_s_2, "Line2")
+            else:
+                theta = calculate_track_direction(pt_1, pt_2)
+
+                weighting = 0.7
+                search_pt_a = (pt_2 * (weighting) + line_center * (1- weighting)) 
+                search_pt_b = (pt_1 * (weighting) + line_center * (1- weighting)) 
+                search_pt_a = search_pt_a + step_size * np.array([np.cos(theta), np.sin(theta)])
+                search_pt_b = search_pt_b + step_size * np.array([np.cos(theta), np.sin(theta)])
+
+                plt.plot(search_pt_a[0], search_pt_a[1], '.', color='red', markersize=10)
+                plt.plot(search_pt_b[0], search_pt_b[1], '+', color='red', markersize=10)
+
+                pt_1_a, max_s_1_a = line_1.find_closest_point(search_pt_a, max_s_1, "Line1_a")
+                pt_2_a, max_s_2_a = line_2.find_closest_point(search_pt_a, max_s_2, "Line2_a")
+
+                pt_1_b, max_s_1_b = line_1.find_closest_point(search_pt_b, max_s_1, "Line1_b")
+                pt_2_b, max_s_2_b = line_2.find_closest_point(search_pt_b, max_s_2, "Line2_b")
+
+                # test to find the best candidate
+                sum_s_a = max_s_1_a + max_s_2_a
+                sum_s_b = max_s_1_b + max_s_2_b
+
+                if sum_s_a < sum_s_b:
+                    pt_1, max_s_1 = pt_1_a, max_s_1_a
+                    pt_2, max_s_2 = pt_2_a, max_s_2_a
+                    search_pt = search_pt_a
+                else:
+                    pt_1, max_s_1 = pt_1_b, max_s_1_b
+                    pt_2, max_s_2 = pt_2_b, max_s_2_b
+                    search_pt = search_pt_b
 
             line_center = (pt_1 + pt_2) / 2
             center_pts[i] = line_center
 
-            if np.all(np.isclose(pt_1, boundary_1[i-1])) and np.all(np.isclose(pt_2, boundary_2[i-1])):
+            if np.all(np.isclose(pt_1, boundary_1[i-1])) and np.all(np.isclose(pt_2, boundary_2[i-1])): 
                 print("Adding redundant points -- > move to projection")
                 ready_to_extend_line = True
-                i -= 4 # remove last two points
-                # break
+                i -= 1 # remove last two points
+                break
 
             if max_s_2 > 0.95:
                 # consider a problem...
@@ -176,43 +208,12 @@ class LocalMapGenerator:
                 # i += 1 # include last point
                 break
 
-            n_diff = pt_1 - pt_2
-            heading = np.arctan2(n_diff[1], n_diff[0])
-            # print(f"Heading: {heading}")
-            new_theta = heading + np.pi/2
-
-            d_theta = new_theta - theta
-            if new_theta > np.pi:
-                new_theta = new_theta - 2 * np.pi
-            elif new_theta < -np.pi:
-                new_theta = new_theta + 2 * np.pi
-
-            # print(f"Theta: {new_theta}")
-            theta = new_theta
-
-            if i == z: # first point
-                d_theta = - np.abs(d_theta) * np.sign(theta)
-
-            weighting = np.clip(abs(d_theta) / 0.2, 0, 0.7)
-            # if theta < 0:
-            # if max_s_1 > 0.95: # consdier max_s_1 > max_s_2 instead of parameter
-            if max_s_1 > max_s_2:
-                adjusted_line_center = (pt_2 * (weighting) + line_center * (1- weighting)) 
-            else:
-            # elif max_s_2 > 0.95:
-                adjusted_line_center = (pt_1 * (weighting) + line_center * (1- weighting)) 
-            # else:
-                # adjusted_line_center = line_center 
-
-
-            center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
-
-            plt.plot(center_pt[0], center_pt[1], '*', color='blue', markersize=10)
+            plt.plot(search_pt[0], search_pt[1], '*', color='blue', markersize=10, alpha=0.2)
             plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
-            plt.plot(adjusted_line_center[0], adjusted_line_center[1], '*', color='purple', markersize=10)
-            c_xs = [adjusted_line_center[0], center_pt[0]]
-            c_ys = [adjusted_line_center[1], center_pt[1]]
-            plt.plot(c_xs, c_ys, '-', color='purple')
+            # plt.plot(adjusted_line_center[0], adjusted_line_center[1], '*', color='purple', markersize=10)
+            # c_xs = [adjusted_line_center[0], center_pt[0]]
+            # c_ys = [adjusted_line_center[1], center_pt[1]]
+            # plt.plot(c_xs, c_ys, '-', color='purple')
 
             plt.plot(pt_1[0], pt_1[1], 'x', color='black', markersize=10)
             plt.plot(pt_2[0], pt_2[1], 'x', color='black', markersize=10)
@@ -441,6 +442,19 @@ def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
     s = interpolate.splev(t_glob, path, ext=3)
     s = np.concatenate(s)
     return spatial.distance.euclidean(p, s)
+
+def calculate_track_direction(pt_1, pt_2):
+    n_diff = pt_1 - pt_2
+    heading = np.arctan2(n_diff[1], n_diff[0])
+    theta = heading + np.pi/2
+
+    if theta > np.pi:
+        theta = theta - 2 * np.pi
+    elif theta < -np.pi:
+        theta = theta + 2 * np.pi
+
+    return theta
+
 
 # @njit(cache=True)
 def calculate_intersection(line1, line2):
