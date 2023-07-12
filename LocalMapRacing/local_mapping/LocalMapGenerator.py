@@ -11,11 +11,11 @@ from scipy import spatial
 from numba import njit
 
 DISTNACE_THRESHOLD = 1.4 # distance in m for an exception
-TRACK_WIDTH = 1.9 # use fixed width
+TRACK_WIDTH = 1.7 # use fixed width
 POINT_SEP_DISTANCE = 0.8
 
 PLOT_DEVEL = True
-PLOT_DEVEL = False
+# PLOT_DEVEL = False
 
 class LocalMapGenerator:
     def __init__(self, path, map_name) -> None:
@@ -247,38 +247,53 @@ class LocalMapGenerator:
         plt.figure(2)
         plt.plot(true_center_line[:-removal_n, 0], true_center_line[:-removal_n, 1], '*', color='orange', markersize=10)
         plt.plot(true_center_line[-removal_n:, 0], true_center_line[-removal_n:, 1], '*', color='pink', markersize=10)
-        plt.pause(0.00001)
+        # plt.pause(0.00001)
 
         self.boundary_1 = self.boundary_1[:-removal_n]
         self.boundary_2 = self.boundary_2[:-removal_n]
         true_center_line = (self.boundary_1 + self.boundary_2) / 2
 
-        center = LocalLine(true_center_line)
-        l1 = LocalLine(self.boundary_1)
-        l2 = LocalLine(self.boundary_2)
-
-        # fig, axs = plt.subplots(3, 1, figsize=(10, 7), num=3)
-
-        # axs[0].plot(center.kappa, label="center")
-        # axs[0].plot(l1.kappa, label="l1")
-        # axs[0].plot(l2.kappa, label="l2")
-        # axs[0].grid(True)
-        # axs[0].legend()
-
-        # axs[1].plot(center.psi, label="center")
-        # axs[1].plot(l1.psi, label="l1")
-        # axs[1].plot(l2.psi, label="l2")
-        # axs[1].grid(True)
-        # axs[1].legend()
-
-        # plt.show()
+        # center = LocalLine(true_center_line)
+        # l1 = LocalLine(self.boundary_1)
+        # l2 = LocalLine(self.boundary_2)
 
         if self.max_s_1 > self.max_s_2:
             projection_line = self.line_2
+            boundary = self.boundary_2
+            direction = -1
         else:
             projection_line = self.line_1
+            boundary = self.boundary_1
+            direction = 1
 
-        
+        _pt, current_s = projection_line.find_closest_point(boundary[-1], 0)
+        print(f"Current_s: {current_s}")
+        if current_s > 0.85:
+            print(f"Current_s: {current_s} > 0.99")
+            return # no extension required
+
+        step_size = 0.6
+        print(f"Lenth: {(1-current_s[0]) * projection_line.cs[-1]}")
+        n_pts = int((1-current_s[0]) * projection_line.cs[-1] / step_size + 1)
+        new_boundary_points = projection_line.extract_line_portion(np.linspace(current_s[0], 1, n_pts))
+        new_projection_line = LocalLine(new_boundary_points)
+
+        # project to center line
+        extra_center_line = new_projection_line.track + new_projection_line.nvecs * TRACK_WIDTH/2 * direction
+
+        extra_projected_boundary = new_projection_line.track + new_projection_line.nvecs * TRACK_WIDTH * direction
+
+        if self.max_s_1 > self.max_s_2:
+            self.boundary_2 = np.append(self.boundary_2, new_projection_line.track, axis=0)
+            self.boundary_1 = np.append(self.boundary_1, extra_projected_boundary, axis=0)
+        else:
+            self.boundary_2 = np.append(self.boundary_2, extra_projected_boundary, axis=0)
+            self.boundary_1 = np.append(self.boundary_1, new_projection_line.track, axis=0)
+
+        plt.plot(extra_center_line[:, 0], extra_center_line[:, 1], '-o', color='green')
+        plt.plot(extra_projected_boundary[:, 0], extra_projected_boundary[:, 1], '-o', color='black')
+
+        # plt.show()
 
 
     def calculate_next_boundaries(self, pt_1, pt_2):
@@ -636,6 +651,13 @@ class TrackBoundary:
             closest_pt = closest_pt[0]
 
         return closest_pt, t_pt
+    
+    def extract_line_portion(self, s_array):
+        assert np.min(s_array) >= 0, "S must be positive"
+        assert  np.max(s_array) <= 1, "S must be < 1"
+        point_set = np.array(interpolate.splev(s_array, self.tck)).T
+
+        return point_set
         
     def plot_line(self):
         plt.plot(self.points[:, 0], self.points[:, 1], '.', markersize=10, color="#20bf6b")
