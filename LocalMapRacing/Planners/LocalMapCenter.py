@@ -67,9 +67,9 @@ class LocalMapCenter:
         # if self.counter == 48:
         #     print("Stop here")
 
-        crossing = self.local_map.adjust_center_line_smoothing(self.counter, self.lm_smooth_path)
-        if crossing:
-            print(f"Crossing detected at {self.counter}")
+        # crossing = self.local_map.adjust_center_line_smoothing(self.counter, self.lm_smooth_path)
+        # if crossing:
+        #     print(f"Crossing detected at {self.counter}")
 
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
         heading = obs['full_states'][0][4]

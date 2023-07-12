@@ -14,6 +14,8 @@ DISTNACE_THRESHOLD = 1.4 # distance in m for an exception
 TRACK_WIDTH = 1.9 # use fixed width
 POINT_SEP_DISTANCE = 0.8
 
+PLOT_DEVEL = True
+# PLOT_DEVEL = False
 
 class LocalMapGenerator:
     def __init__(self, path, map_name) -> None:
@@ -40,14 +42,27 @@ class LocalMapGenerator:
 
         pts, pt_distances, inds = self.extract_track_lines(xs_f, ys_f)
         self.extract_boundaries(pts, pt_distances, inds)
-        # self.estimate_center_line_devel(xs_f, ys_f)
-        self.estimate_center_line_dual_boundary()
+        self.estimate_center_line_dual_boundary(xs_f, ys_f)
+        # self.extend_center_line_projection()
         # left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
         true_center_line = (self.boundary_1 + self.boundary_2) / 2
-        smooth_track = self.build_smooth_track()
+        if true_center_line[-1, 0] < 0.01:
+            print(f"Last point small: {true_center_line[-1, 0]}")
+        ws = np.linalg.norm(self.boundary_1 - true_center_line, axis=1)
+        ws = ws[:, None] * np.ones_like(true_center_line)
+        track = np.concatenate([true_center_line, ws], axis=1)
 
-        local_map = PlotLocalMap(smooth_track)
+        # plt.plot(xs_f[inds], ys_f[inds], 'x', color='red')
+        plt.plot(pts[inds, 0], pts[inds, 1], '*', color='red')
+        # plt.plot(pts[:, 0], pts[:, 1], '.', color='red')
+
+        plt.show()
+        local_map = PlotLocalMap(track)
+
+        # smooth_track = self.build_smooth_track()
+        # local_map = PlotLocalMap(smooth_track)
         # lm = LocalMap(track)
+
         # local_map.plot_local_map(xs=xs_f, ys=ys_f)
 
         # plt.plot(left_pts[:, 0], left_pts[:, 1], 'x', color='black', markersize=10)
@@ -62,7 +77,6 @@ class LocalMapGenerator:
         # line_1.plot_line()
         # line_2.plot_line()
 
-        # plt.show()
         plt.pause(0.0001)
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
@@ -78,6 +92,7 @@ class LocalMapGenerator:
         inds = np.array(np.where(pt_distances > DISTNACE_THRESHOLD))
         exclusion_zone = 2
         length = len(pts)
+        print(inds)
         inds = np.delete(inds, np.where(inds <= exclusion_zone)) 
         inds = np.delete(inds, np.where(inds >= length-exclusion_zone)) 
 
@@ -88,11 +103,47 @@ class LocalMapGenerator:
 
     def extract_boundaries(self, pts, pt_distances, inds):
         arr_inds = np.arange(len(pt_distances))[inds]
-        min_ind = np.min(arr_inds) + 1
+        min_ind = np.min(arr_inds) +1
         max_ind = np.max(arr_inds) + 1
 
-        self.line_1 = TrackBoundary(pts[:min_ind], True)
-        self.line_2 = TrackBoundary(pts[max_ind:], True)
+        # plt.figure(5)
+        # plt.plot(pts[:, 0], pts[:, 1], '.', color='blue', alpha=0.4)
+
+        # plot_inds = np.append(inds, len(pts)-2)
+        # plot_inds = np.insert(plot_inds, 0, 0)
+        # for i in range(len(inds)+1):
+        #     ind_1 = plot_inds[i] + 2
+        #     ind_2 = plot_inds[i+1] 
+        #     pt1 = pts[ind_1]
+        #     pt2 = pts[ind_2]
+        #     xs = [pt1[0], pt2[0]]
+        #     ys = [pt1[1], pt2[1]]
+        #     plt.plot(xs, ys, color='pink', linewidth=3)
+
+        # plt.axis('equal')
+        # plt.show()
+
+        line_1_pts = pts[:min_ind]
+        # print(pts[inds])
+        # print(pts[inds+1])
+        i = 1
+        while np.all(line_1_pts[:, 0] < 0) or np.all(np.abs(line_1_pts[:, 1]) > 2.5):
+            print(inds)
+            min_ind2 = np.min(arr_inds[i:]) 
+            print(f"{i}: Line 1 problem: shift ind from {min_ind} to {min_ind2}")
+            line_1_pts = pts[min_ind+2:min_ind2]
+            print(line_1_pts)
+            min_ind = min_ind2
+            i += 1
+
+        line_2_pts = pts[max_ind:]
+        if np.all(line_2_pts[:, 0] < 0):
+            max_ind2 = np.max(arr_inds[:-1]) + 1
+            print(f"Line 2 problem: shift ind from {max_ind} to {max_ind2}")
+            line_1_pts = pts[max_ind2:max_ind]
+
+        self.line_1 = TrackBoundary(line_1_pts, True)
+        self.line_2 = TrackBoundary(line_2_pts, True)
 
     def project_side_to_track(self, side):
         side_lm = LocalMap(side)
@@ -112,15 +163,16 @@ class LocalMapGenerator:
         return track
 
     def estimate_center_line_dual_boundary(self, xs=None, ys=None):
-        plt.figure(2)
-        plt.clf()
-        plt.axis('equal')
-        if xs is not None and ys is not None:
-            plt.plot(xs, ys, '.', color='#45aaf2', alpha=0.1)
-        plt.plot(0, 0, 'x', markersize=14, color='red')
+        if PLOT_DEVEL:
+            plt.figure(2)
+            plt.clf()
+            plt.axis('equal')
+            if xs is not None and ys is not None:
+                plt.plot(xs, ys, '.', color='#45aaf2', alpha=0.1)
+            plt.plot(0, 0, 'x', markersize=14, color='red')
 
-        self.line_1.plot_line()
-        self.line_2.plot_line()
+            self.line_1.plot_line()
+            self.line_2.plot_line()
 
         search_pt = [-1, 0]
         max_pts = 30
@@ -139,17 +191,19 @@ class LocalMapGenerator:
             line_center = (pt_1 + pt_2) / 2
             center_pts[i] = line_center
 
-            plt.plot(pt_1[0], pt_1[1], 'x', color='black', markersize=10)
-            plt.plot(pt_2[0], pt_2[1], 'x', color='black', markersize=10)
-            xs = [pt_1[0], pt_2[0]]
-            ys = [pt_1[1], pt_2[1]]
-            plt.plot(xs, ys, '-', color='black')
+            if PLOT_DEVEL:
+                plt.plot(pt_1[0], pt_1[1], 'x', color='black', markersize=10)
+                plt.plot(pt_2[0], pt_2[1], 'x', color='black', markersize=10)
+                xs = [pt_1[0], pt_2[0]]
+                ys = [pt_1[1], pt_2[1]]
+                plt.plot(xs, ys, '-', color='black')
 
-            plt.plot(search_pt[0], search_pt[1], '*', color='blue', markersize=10, alpha=0.2)
-            plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
+                plt.plot(search_pt[0], search_pt[1], '*', color='blue', markersize=10, alpha=0.2)
+                plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
 
             if np.all(np.isclose(pt_1, self.boundary_1[i-1])) and np.all(np.isclose(pt_2, self.boundary_2[i-1])): 
                 print(f"{i}-> Adding redundant points -- > move to projection")
+                i -= 1
                 break
 
             self.boundary_1[i] = pt_1
@@ -165,8 +219,10 @@ class LocalMapGenerator:
         if i == max_pts - 1:
             print(f"Reached max number of points")
 
-        plt.axis('equal')
-        plt.pause(0.00001)
+        if PLOT_DEVEL:
+            plt.axis('equal')
+            plt.pause(0.00001)
+
         self.boundary_1 = self.boundary_1[:i+1]
         self.boundary_2 = self.boundary_2[:i+1]
 
@@ -185,8 +241,9 @@ class LocalMapGenerator:
         search_pt_a = search_pt_a + step_size * np.array([np.cos(theta), np.sin(theta)])
         search_pt_b = search_pt_b + step_size * np.array([np.cos(theta), np.sin(theta)])
 
-        plt.plot(search_pt_a[0], search_pt_a[1], '.', color='red', markersize=10)
-        plt.plot(search_pt_b[0], search_pt_b[1], '.', color='red', markersize=10)
+        if PLOT_DEVEL:
+            plt.plot(search_pt_a[0], search_pt_a[1], '.', color='red', markersize=10)
+            plt.plot(search_pt_b[0], search_pt_b[1], '.', color='red', markersize=10)
 
         pt_1_a, max_s_1_a = self.line_1.find_closest_point(search_pt_a, self.max_s_1, "Line1_a")
         pt_2_a, max_s_2_a = self.line_2.find_closest_point(search_pt_a, self.max_s_2, "Line2_a")
@@ -506,7 +563,8 @@ class TrackBoundary:
         self.el = np.linalg.norm(np.diff(self.points, axis=0), axis=1)
         self.cs = np.insert(np.cumsum(self.el), 0, 0)
 
-        self.tck = interpolate.splprep([self.points[:, 0], self.points[:, 1]], k=3, s=0)[0]
+        order_k = min(3, len(self.points) - 1)
+        self.tck = interpolate.splprep([self.points[:, 0], self.points[:, 1]], k=order_k, s=0)[0]
 
     def find_closest_point(self, pt, previous_maximum, string=""):
         dists = np.linalg.norm(self.points - pt, axis=1)

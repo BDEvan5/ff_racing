@@ -36,7 +36,8 @@ def interpolate_track(points, n_points, s=10):
 
 
 def interpolate_track_new(points, n_points=None, s=0):
-    tck = interpolate.splprep([points[:, 0], points[:, 1]], k=3, s=s)[0]
+    order_k = min(3, len(points) - 1)
+    tck = interpolate.splprep([points[:, 0], points[:, 1]], k=order_k, s=s)[0]
     if n_points is None: n_points = len(points)
     track = np.array(interpolate.splev(np.linspace(0, 1, n_points), tck)).T
 
