@@ -15,7 +15,7 @@ TRACK_WIDTH = 1.9 # use fixed width
 POINT_SEP_DISTANCE = 0.8
 
 PLOT_DEVEL = True
-# PLOT_DEVEL = False
+PLOT_DEVEL = False
 
 class LocalMapGenerator:
     def __init__(self, path, map_name) -> None:
@@ -233,52 +233,45 @@ class LocalMapGenerator:
         # Extends the center line using a single boundary.
 
         # Check if extension is required.
-        if self.max_s_1 > 0.95 and self.max_s_2 > 0.95:
+        if self.max_s_1 > 0.99 and self.max_s_2 > 0.99:
             return # no extension required
         
         true_center_line = (self.boundary_1 + self.boundary_2) / 2
-        print(f"Center line: {true_center_line}")
         dists = np.linalg.norm(np.diff(true_center_line, axis=0), axis=1)
         print(dists)
         threshold = 0.2
         removal_n = np.sum(dists < threshold)
         # removal_n = 3
         print(f"Remove: {removal_n}")
-        center = LocalLine(true_center_line[:-removal_n])
-        l1 = LocalLine(self.boundary_1[:-removal_n])
-        l2 = LocalLine(self.boundary_2[:-removal_n])
 
         plt.figure(2)
         plt.plot(true_center_line[:-removal_n, 0], true_center_line[:-removal_n, 1], '*', color='orange', markersize=10)
         plt.plot(true_center_line[-removal_n:, 0], true_center_line[-removal_n:, 1], '*', color='pink', markersize=10)
         plt.pause(0.00001)
 
-        fig, axs = plt.subplots(3, 1, figsize=(10, 7), num=3)
-        # axs[0].plot(center.s_track, center.kappa, label="center")
-        # axs[0].plot(l1.s_track, l1.kappa, label="l1")
-        # axs[0].plot(l2.s_track, l2.kappa, label="l2")
+        self.boundary_1 = self.boundary_1[:-removal_n]
+        self.boundary_2 = self.boundary_2[:-removal_n]
+        true_center_line = (self.boundary_1 + self.boundary_2) / 2
+
+        center = LocalLine(true_center_line)
+        l1 = LocalLine(self.boundary_1)
+        l2 = LocalLine(self.boundary_2)
+
+        # fig, axs = plt.subplots(3, 1, figsize=(10, 7), num=3)
+
+        # axs[0].plot(center.kappa, label="center")
+        # axs[0].plot(l1.kappa, label="l1")
+        # axs[0].plot(l2.kappa, label="l2")
         # axs[0].grid(True)
         # axs[0].legend()
 
-        # axs[1].plot(center.s_track, center.psi, label="center")
-        # axs[1].plot(l1.s_track, l1.psi, label="l1")
-        # axs[1].plot(l2.s_track, l2.psi, label="l2")
+        # axs[1].plot(center.psi, label="center")
+        # axs[1].plot(l1.psi, label="l1")
+        # axs[1].plot(l2.psi, label="l2")
         # axs[1].grid(True)
         # axs[1].legend()
 
-        axs[0].plot(center.kappa, label="center")
-        axs[0].plot(l1.kappa, label="l1")
-        axs[0].plot(l2.kappa, label="l2")
-        axs[0].grid(True)
-        axs[0].legend()
-
-        axs[1].plot(center.psi, label="center")
-        axs[1].plot(l1.psi, label="l1")
-        axs[1].plot(l2.psi, label="l2")
-        axs[1].grid(True)
-        axs[1].legend()
-
-        plt.show()
+        # plt.show()
 
         if self.max_s_1 > self.max_s_2:
             projection_line = self.line_2
