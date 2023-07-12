@@ -15,7 +15,7 @@ TRACK_WIDTH = 1.9 # use fixed width
 POINT_SEP_DISTANCE = 0.8
 
 PLOT_DEVEL = True
-PLOT_DEVEL = False
+# PLOT_DEVEL = False
 
 class LocalMapGenerator:
     def __init__(self, path, map_name) -> None:
@@ -43,7 +43,7 @@ class LocalMapGenerator:
         pts, pt_distances, inds = self.extract_track_lines(xs_f, ys_f)
         self.extract_boundaries(pts, pt_distances, inds)
         self.estimate_center_line_dual_boundary(xs_f, ys_f)
-        # self.extend_center_line_projection()
+        self.extend_center_line_projection()
         # left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
 
         # track = self.build_true_center_track()
@@ -74,7 +74,7 @@ class LocalMapGenerator:
 
         return local_map
     
-    def build_true_cneter_track(self):
+    def build_true_center_track(self):
         true_center_line = (self.boundary_1 + self.boundary_2) / 2
         ws = np.linalg.norm(self.boundary_1 - true_center_line, axis=1)
         ws = ws[:, None] * np.ones_like(true_center_line)
@@ -199,7 +199,7 @@ class LocalMapGenerator:
                 plt.plot(xs, ys, '-', color='black')
 
                 plt.plot(search_pt[0], search_pt[1], '*', color='blue', markersize=10, alpha=0.2)
-                plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
+                # plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
 
             if np.all(np.isclose(pt_1, self.boundary_1[i-1])) and np.all(np.isclose(pt_2, self.boundary_2[i-1])): 
                 print(f"{i}-> Adding redundant points -- > move to projection")
@@ -228,6 +228,65 @@ class LocalMapGenerator:
 
         if len(self.boundary_1) < 2:
             print(f"Only {len(self.boundary_1)} points found. This is a problem")
+
+    def extend_center_line_projection(self):
+        # Extends the center line using a single boundary.
+
+        # Check if extension is required.
+        if self.max_s_1 > 0.95 and self.max_s_2 > 0.95:
+            return # no extension required
+        
+        true_center_line = (self.boundary_1 + self.boundary_2) / 2
+        print(f"Center line: {true_center_line}")
+        dists = np.linalg.norm(np.diff(true_center_line, axis=0), axis=1)
+        print(dists)
+        threshold = 0.2
+        removal_n = np.sum(dists < threshold)
+        # removal_n = 3
+        print(f"Remove: {removal_n}")
+        center = LocalLine(true_center_line[:-removal_n])
+        l1 = LocalLine(self.boundary_1[:-removal_n])
+        l2 = LocalLine(self.boundary_2[:-removal_n])
+
+        plt.figure(2)
+        plt.plot(true_center_line[:-removal_n, 0], true_center_line[:-removal_n, 1], '*', color='orange', markersize=10)
+        plt.plot(true_center_line[-removal_n:, 0], true_center_line[-removal_n:, 1], '*', color='pink', markersize=10)
+        plt.pause(0.00001)
+
+        fig, axs = plt.subplots(3, 1, figsize=(10, 7), num=3)
+        # axs[0].plot(center.s_track, center.kappa, label="center")
+        # axs[0].plot(l1.s_track, l1.kappa, label="l1")
+        # axs[0].plot(l2.s_track, l2.kappa, label="l2")
+        # axs[0].grid(True)
+        # axs[0].legend()
+
+        # axs[1].plot(center.s_track, center.psi, label="center")
+        # axs[1].plot(l1.s_track, l1.psi, label="l1")
+        # axs[1].plot(l2.s_track, l2.psi, label="l2")
+        # axs[1].grid(True)
+        # axs[1].legend()
+
+        axs[0].plot(center.kappa, label="center")
+        axs[0].plot(l1.kappa, label="l1")
+        axs[0].plot(l2.kappa, label="l2")
+        axs[0].grid(True)
+        axs[0].legend()
+
+        axs[1].plot(center.psi, label="center")
+        axs[1].plot(l1.psi, label="l1")
+        axs[1].plot(l2.psi, label="l2")
+        axs[1].grid(True)
+        axs[1].legend()
+
+        plt.show()
+
+        if self.max_s_1 > self.max_s_2:
+            projection_line = self.line_2
+        else:
+            projection_line = self.line_1
+
+        
+
 
     def calculate_next_boundaries(self, pt_1, pt_2):
         step_size = 0.6
@@ -602,6 +661,24 @@ def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
     s = interpolate.splev(t_glob, path, ext=3)
     s = np.concatenate(s)
     return spatial.distance.euclidean(p, s)
+
+
+class LocalLine:
+    def __init__(self, track):
+        self.track = track
+        self.el_lengths = None
+        self.psi = None
+        self.kappa = None
+        self.nvecs = None
+        self.s_track = None
+
+        self.calculate_length_heading_nvecs()
+
+    def calculate_length_heading_nvecs(self):
+        self.el_lengths = np.linalg.norm(np.diff(self.track[:, :2], axis=0), axis=1)
+        self.s_track = np.insert(np.cumsum(self.el_lengths), 0, 0)
+        self.psi, self.kappa = tph.calc_head_curv_num.calc_head_curv_num(self.track, self.el_lengths, False)
+        self.nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(self.psi-np.pi/2)
 
 def calculate_track_direction(pt_1, pt_2):
     n_diff = pt_1 - pt_2

@@ -12,9 +12,9 @@ RENDER_ENV = False
 
         
 def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
-    init_positions = np.array([[0, 0, 0]])
+    # init_positions = np.array([[0, 0, 0]])
     # init_positions = np.array([[15, -16, -1.1]])
-    # init_positions = np.array([[16, -18, -1.1]])
+    init_positions = np.array([[16, -18, -1.1]])
     # init_positions = np.array([[16, -19, -1.1]])
     # init_positions = np.array([[14.6, -19.5, -2.9]])
     # init_positions = np.array([[-0.07, -13.1, 1.1]])
