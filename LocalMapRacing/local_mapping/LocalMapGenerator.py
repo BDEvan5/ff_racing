@@ -116,7 +116,7 @@ class LocalMapGenerator:
         line_2.plot_line()
         
         center_pt = np.zeros(2)
-        # center_pt[0] = -1 # start before beginning
+        center_pt[0] = -1 # start before beginning
         step_size = 0.6
         max_pts = 20
         end_threshold = 0.1
@@ -140,12 +140,6 @@ class LocalMapGenerator:
                 ready_to_extend_line = True
                 i -= 4 # remove last two points
                 # break
-
-            if max_s_1 < 0 or max_s_2 < 0:
-                center_pt[0] += 0.3
-                z += 1
-                print(f"{max_s_1} - {max_s_2} :: Too early --> moving on: {i}")
-                continue
 
             if max_s_2 > 0.95:
                 # consider a problem...
@@ -177,29 +171,37 @@ class LocalMapGenerator:
             long_distance = np.linalg.norm(pt_1 - line_1.points[-1])
             short_distance = np.linalg.norm(pt_2 - line_2.points[-1])
             if long_distance < end_threshold and short_distance < end_threshold:
-                print(f"Breaking because of long and short distances")
+                print(f"Breaking because of long ({long_distance}) and short ({short_distance}) distances")
+                print(f"Pt1: {pt_1} :: Pt2: {pt_2}")
+                # i += 1 # include last point
                 break
 
             n_diff = pt_1 - pt_2
             heading = np.arctan2(n_diff[1], n_diff[0])
-            print(f"Heading: {heading}")
-            if heading < 0:
-                new_theta = heading + np.pi/2
-            else:
-                new_theta = heading - np.pi/2
+            # print(f"Heading: {heading}")
+            new_theta = heading + np.pi/2
+
             d_theta = new_theta - theta
+            if new_theta > np.pi:
+                new_theta = new_theta - 2 * np.pi
+            elif new_theta < -np.pi:
+                new_theta = new_theta + 2 * np.pi
+
+            # print(f"Theta: {new_theta}")
             theta = new_theta
 
             if i == z: # first point
                 d_theta = - np.abs(d_theta) * np.sign(theta)
 
-
-            weighting = np.clip(abs(d_theta) / 0.2, 0, 0.8)
-            # print(f"Weighting: {weighting}")
-            if d_theta > 0:
+            weighting = np.clip(abs(d_theta) / 0.2, 0, 0.7)
+            # if theta < 0:
+            if max_s_1 > 0.95:
                 adjusted_line_center = (pt_2 * (weighting) + line_center * (1- weighting)) 
-            else:
+            elif max_s_2 > 0.95:
                 adjusted_line_center = (pt_1 * (weighting) + line_center * (1- weighting)) 
+            else:
+                adjusted_line_center = line_center 
+
 
             center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
 
@@ -222,6 +224,7 @@ class LocalMapGenerator:
             ready_to_extend_line = True
             i = 0
             z = 0
+            plt.axis('equal')
             plt.show()
 
         k = 0
@@ -287,6 +290,10 @@ class LocalMapGenerator:
         end_ind = max(i, k)
         boundary_1 = np.array(boundary_1[z:end_ind+1])
         boundary_2 = np.array(boundary_2[z:end_ind+1])
+
+        if len(boundary_1) < 2:
+            print(f"Only {len(boundary_1)} points found. This is a problem")
+
 
         return boundary_1, boundary_2
 

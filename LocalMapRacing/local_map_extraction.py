@@ -13,9 +13,9 @@ RENDER_ENV = False
         
 def run_simulation_loop_laps(env, planner, n_laps, n_sim_steps=10):
     # init_positions = np.array([[0, 0, 0]])
-    # init_positions = np.array([[15, -16, -1.1]])
+    init_positions = np.array([[15, -16, -1.1]])
     # init_positions = np.array([[16, -18, -1.1]])
-    init_positions = np.array([[14.6, -19.5, -2.9]])
+    # init_positions = np.array([[14.6, -19.5, -2.9]])
     # init_positions = np.array([[2.45, -14.9, 2.7]])
 
     observation, reward, done, info = env.reset(poses=init_positions)
