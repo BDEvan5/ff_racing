@@ -195,12 +195,14 @@ class LocalMapGenerator:
 
             weighting = np.clip(abs(d_theta) / 0.2, 0, 0.7)
             # if theta < 0:
-            if max_s_1 > 0.95:
+            # if max_s_1 > 0.95: # consdier max_s_1 > max_s_2 instead of parameter
+            if max_s_1 > max_s_2:
                 adjusted_line_center = (pt_2 * (weighting) + line_center * (1- weighting)) 
-            elif max_s_2 > 0.95:
-                adjusted_line_center = (pt_1 * (weighting) + line_center * (1- weighting)) 
             else:
-                adjusted_line_center = line_center 
+            # elif max_s_2 > 0.95:
+                adjusted_line_center = (pt_1 * (weighting) + line_center * (1- weighting)) 
+            # else:
+                # adjusted_line_center = line_center 
 
 
             center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
@@ -219,13 +221,14 @@ class LocalMapGenerator:
             plt.plot(xs, ys, '-', color='black')
 
         if i == max_pts - 1:
+            print(f"Reached max number of points")
             # plt.show()
-            print(f"No points found - make via extension")
-            ready_to_extend_line = True
-            i = 0
-            z = 0
-            plt.axis('equal')
-            plt.show()
+            # print(f"No points found - make via extension")
+            # ready_to_extend_line = True
+            # i = 0
+            # z = 0
+            # plt.axis('equal')
+            # plt.show()
 
         k = 0
         # if ready_to_extend_line:/
@@ -408,11 +411,11 @@ class TrackBoundary:
 
         closest_t = optimize.fmin(dist_to_p, x0=t_guess, args=(self.tck, pt), disp=False)
         if closest_t < 0:
-            print(f"{string}: Guess, {t_guess:.3f}; Closest_t {closest_t}, Previous {previous_maximum}")
+            # print(f"{string}: Guess, {t_guess:.3f}; Closest_t {closest_t}, Previous {previous_maximum}")
             return self.points[0], closest_t
         t_pt = max(closest_t, previous_maximum)
 
-        print(f"{string}: Guess, {t_guess:.3f}; Closest_t {closest_t}, Previous {previous_maximum}")
+        # print(f"{string}: Guess, {t_guess:.3f}; Closest_t {closest_t}, Previous {previous_maximum}")
 
         interp_return = interpolate.splev(t_pt, self.tck)
         closest_pt = np.array(interp_return).T
