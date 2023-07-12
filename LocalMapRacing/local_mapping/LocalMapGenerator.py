@@ -45,22 +45,12 @@ class LocalMapGenerator:
         self.estimate_center_line_dual_boundary(xs_f, ys_f)
         # self.extend_center_line_projection()
         # left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
-        true_center_line = (self.boundary_1 + self.boundary_2) / 2
-        if true_center_line[-1, 0] < 0.01:
-            print(f"Last point small: {true_center_line[-1, 0]}")
-        ws = np.linalg.norm(self.boundary_1 - true_center_line, axis=1)
-        ws = ws[:, None] * np.ones_like(true_center_line)
-        track = np.concatenate([true_center_line, ws], axis=1)
 
-        # plt.plot(xs_f[inds], ys_f[inds], 'x', color='red')
-        # plt.plot(pts[inds, 0], pts[inds, 1], '*', color='red')
-        # plt.plot(pts[:, 0], pts[:, 1], '.', color='red')
+        # track = self.build_true_center_track()
+        # local_map = PlotLocalMap(track)
 
-        # plt.show()
-        local_map = PlotLocalMap(track)
-
-        # smooth_track = self.build_smooth_track()
-        # local_map = PlotLocalMap(smooth_track)
+        smooth_track = self.build_smooth_track()
+        local_map = PlotLocalMap(smooth_track)
         # lm = LocalMap(track)
 
         # local_map.plot_local_map(xs=xs_f, ys=ys_f)
@@ -84,6 +74,14 @@ class LocalMapGenerator:
 
         return local_map
     
+    def build_true_cneter_track(self):
+        true_center_line = (self.boundary_1 + self.boundary_2) / 2
+        ws = np.linalg.norm(self.boundary_1 - true_center_line, axis=1)
+        ws = ws[:, None] * np.ones_like(true_center_line)
+        track = np.concatenate([true_center_line, ws], axis=1)
+
+        return track
+
     def extract_track_lines(self, xs, ys):
         pts = np.hstack((xs[:, None], ys[:, None]))
         pts = pts[pts[:, 0] > -2] # remove points behind the car
@@ -92,7 +90,6 @@ class LocalMapGenerator:
         inds = np.array(np.where(pt_distances > DISTNACE_THRESHOLD))
         exclusion_zone = 2
         length = len(pts)
-        print(inds)
         inds = np.delete(inds, np.where(inds <= exclusion_zone)) 
         inds = np.delete(inds, np.where(inds >= length-exclusion_zone)) 
 
@@ -106,14 +103,12 @@ class LocalMapGenerator:
         min_ind = np.min(arr_inds) +1
         max_ind = np.max(arr_inds) + 1
 
-
         line_1_pts = pts[:min_ind]
         line_2_pts = pts[max_ind:]
         i = 1
         while (np.all(line_1_pts[:, 0] < -0.8) or np.all(np.abs(line_1_pts[:, 1]) > 2.5)) and i < len(inds):
-            print(f"Len(inds): {len(inds)} -- i: {i}")
             min_ind2 = np.min(arr_inds[i:]) 
-            print(f"{i}: Line 1 problem: shift ind from {min_ind} to {min_ind2}")
+            # print(f"{i}: Line 1 problem: shift ind from {min_ind} to {min_ind2}")
             line_1_pts = pts[min_ind+2:min_ind2]
             min_ind = min_ind2
             i += 1
@@ -121,9 +116,8 @@ class LocalMapGenerator:
         line_2_pts = pts[max_ind:]
         i = 1
         while (np.all(line_1_pts[:, 0] < -0.8) or np.all(np.abs(line_1_pts[:, 1]) > 2.5)) and i < len(inds):
-            print(inds)
             max_ind2 = np.max(arr_inds[:-i])
-            print(f"{i}: Line 2 problem: shift ind from {max_ind} to {max_ind2}")
+            # print(f"{i}: Line 2 problem: shift ind from {max_ind} to {max_ind2}")
             line_1_pts = pts[max_ind2+2:max_ind]
             max_ind = max_ind2
             i += 1
@@ -234,7 +228,6 @@ class LocalMapGenerator:
 
         if len(self.boundary_1) < 2:
             print(f"Only {len(self.boundary_1)} points found. This is a problem")
-
 
     def calculate_next_boundaries(self, pt_1, pt_2):
         step_size = 0.6

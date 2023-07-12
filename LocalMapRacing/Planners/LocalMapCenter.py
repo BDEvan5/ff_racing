@@ -62,7 +62,7 @@ class LocalMapCenter:
         # plt.pause(0.000001)
         # self.local_map.interpolate_track(0.8)
         # self.local_map.plot_local_map_offset(np.array([0, 0]), 0, self.map_data.map_origin[:2], self.map_data.map_resolution, save_path=self.online_lm_path, counter=self.counter)
-        # self.local_map.plot_local_map(self.online_std_path, self.counter)
+        self.local_map.plot_local_map(self.online_std_path, self.counter)
 
         # if self.counter == 48:
         #     print("Stop here")
@@ -78,8 +78,9 @@ class LocalMapCenter:
 
         self.vehicle_state_history.add_memory_entry(obs, action)
 
-        # if VERBOSE:
-        if  self.counter < 150:
+        VERBOSE = False
+        if VERBOSE:
+        # if  self.counter < 150:
         # if self.counter > 50 and self.counter < 150:
             np.save(self.scan_data_path + f"scan_{self.counter}.npy", obs['scans'][0])
 
