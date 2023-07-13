@@ -130,7 +130,8 @@ def esp_right_limits():
 def analyse_folder():
 
     TestData = AnalyseTestLapData()
-    TestData.explore_folder("Data/TestRun_2/")
+    TestData.explore_folder("Data/LocalRacePP_1/")
+    TestData.explore_folder("Data/GlobalPP/")
 
 
 if __name__ == '__main__':

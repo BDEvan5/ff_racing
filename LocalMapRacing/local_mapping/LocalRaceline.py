@@ -14,6 +14,13 @@ MU = 0.5
 V_MAX = 8
 VEHICLE_MASS = 3.4
 
+# KAPPA_BOUND = 0.3
+# VEHICLE_WIDTH = 0.1
+# a_max = 38
+# ax_max_machine = np.array([[0, a_max],[8, a_max]])
+# ggv = np.array([[0, a_max, a_max], [8, a_max, a_max]])
+# MU = 0.6
+
 class LocalRaceline:
     def __init__(self, path):
         self.lm = None
@@ -35,12 +42,15 @@ class LocalRaceline:
         self.normalise_raceline(raceline)
         self.generate_max_speed_profile()
 
+        raceline = np.concatenate([self.raceline, self.vs[:, None]], axis=-1)
+        return raceline
+
     def generate_minimum_curvature_path(self):
         coeffs_x, coeffs_y, M, normvec_normalized = tph.calc_splines.calc_splines(self.lm.track[:, :2], self.lm.el_lengths, self.lm.psi[0], self.lm.psi[-1])
         psi = self.lm.psi - np.pi/2 # Why?????
 
         try:
-            alpha, error = tph.opt_min_curv.opt_min_curv(self.lm.track, self.lm.nvecs, M, KAPPA_BOUND, VEHICLE_WIDTH, print_debug=False, closed=False, psi_s=psi[0], psi_e=psi[-1], fix_s=True)
+            alpha, error = tph.opt_min_curv.opt_min_curv(self.lm.track, self.lm.nvecs, M, KAPPA_BOUND, VEHICLE_WIDTH, print_debug=False, closed=False, psi_s=psi[0], psi_e=psi[-1], fix_s=True)#, fix_e=True)
 
             raceline = self.lm.track[:, :2] + np.expand_dims(alpha, 1) * self.lm.nvecs
         except Exception as e:
@@ -59,6 +69,7 @@ class LocalRaceline:
     def generate_max_speed_profile(self, starting_speed=V_MAX):
         mu = MU * np.ones_like(self.kappa_r) 
         
+
         self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, self.el_lengths_r, False, 0, VEHICLE_MASS, ggv=ggv, mu=mu, v_max=V_MAX, v_start=starting_speed)
 
 

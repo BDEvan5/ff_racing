@@ -59,21 +59,23 @@ class AnalyseTestLapData:
         for test_folder in testing_folders:
             self.test_folder = test_folder
             test_folder_name = test_folder.split("/")[-2]
-            self.map_name = test_folder_name.split("_")[1].lower()
+            self.map_name = test_folder_name[-3:].lower()
+            # self.map_name = test_folder_name.split("_")[1].lower()
         
             self.map_data = MapData(self.map_name)
             self.std_track = TrackLine(self.map_name, False)
             self.racing_track = TrackLine(self.map_name, True)
 
-        for self.lap_n in range(1):
-            if not self.load_lap_data(): break # no more laps
-            self.calculate_state_progress()
-            
-            self.plot_tracking_accuracy()
-            self.plot_speed_graph()
-            self.plot_slip_graph()
-            self.plot_steering_graph()
-            self.plot_center_line_deviation()
+            for self.lap_n in range(1):
+                if not self.load_lap_data(): break # no more laps
+                self.calculate_state_progress()
+                
+                self.plot_tracking_accuracy()
+                self.plot_speed_graph()
+                self.plot_slip_graph()
+                self.plot_steering_graph()
+                self.plot_center_line_deviation()
+                self.plot_velocity_heat_map()
 
     def load_lap_data(self):
         try:
@@ -188,8 +190,6 @@ class AnalyseTestLapData:
         plt.savefig(f"{self.test_folder}{self.vehicle_name}_slip_{self.lap_n}.svg", bbox_inches='tight', pad_inches=0)
     
     def plot_velocity_heat_map(self): 
-        save_path  = self.path + "{self.test_folder}"
-        
         plt.figure(1)
         plt.clf()
         points = self.states[:, 0:2]
@@ -220,9 +220,10 @@ class AnalyseTestLapData:
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
         
-        name = save_path + f"{self.vehicle_name}_velocity_map_{self.lap_n}"
+        name = self.test_folder + f"{self.vehicle_name}_velocity_map_{self.lap_n}"
         # std_img_saving(name)
         plt.savefig(name + ".svg", bbox_inches='tight', pad_inches=0)
+        plt.savefig(name + ".pdf", bbox_inches='tight', pad_inches=0)
 
 def sub_angles_complex(a1, a2): 
     real = math.cos(a1) * math.cos(a2) + math.sin(a1) * math.sin(a2)
@@ -244,7 +245,10 @@ def esp_right_limits():
 def analyse_folder():
     
     TestData = AnalyseTestLapData()
-    TestData.explore_folder("Data/")
+    # TestData.explore_folder("Data/")
+
+    TestData.process_folder("Data/LocalRacePP_1/")
+    TestData.process_folder("Data/GlobalPP/")
 
 
 if __name__ == '__main__':
