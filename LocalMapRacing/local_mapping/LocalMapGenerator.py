@@ -271,14 +271,14 @@ class LocalMapGenerator:
         plt.clf()
 
         plt.plot(self.scan_xs, self.scan_ys, '.', color='#45aaf2', alpha=0.2)
-        plt.plot(0, 0, 'x', markersize=14, color='red')
+        plt.plot(0, 0, '*', markersize=12, color='red')
 
         self.line_1.plot_line()
         self.line_2.plot_line()
 
         true_center_line = (self.boundary_1 + self.boundary_2) / 2
 
-        plt.plot(true_center_line[:, 0], true_center_line[:, 1], '*', color='orange', markersize=10)
+        plt.plot(true_center_line[:, 0], true_center_line[:, 1], 'X', color='orange', markersize=10)
         for i in range(len(self.boundary_1)):
             xs = [self.boundary_1[i, 0], self.boundary_2[i, 0]]
             ys = [self.boundary_1[i, 1], self.boundary_2[i, 1]]
@@ -286,14 +286,26 @@ class LocalMapGenerator:
         
         if self.boundary_extension_1 is not None:
             extended_true_center = (self.boundary_extension_1 + self.boundary_extension_2) / 2
-            plt.plot(extended_true_center[:, 0], extended_true_center[:, 1], '*', color='pink', markersize=10)
+            plt.plot(extended_true_center[:, 0], extended_true_center[:, 1], 'X', color='pink', markersize=10)
 
             for i in range(len(self.boundary_extension_1)):
                 xs = [self.boundary_extension_1[i, 0], self.boundary_extension_2[i, 0]]
                 ys = [self.boundary_extension_1[i, 1], self.boundary_extension_2[i, 1]]
                 plt.plot(xs, ys, '-x', color='blue', markersize=10)
 
-        plt.plot(self.smooth_track.track[:, 0], self.smooth_track.track[:, 1], '-x', color='red', linewidth=2)
+        plt.plot(self.smooth_track.track[:, 0], self.smooth_track.track[:, 1], '-', color='red', linewidth=3)
+
+        l1 = self.smooth_track.track[:, :2] + self.smooth_track.nvecs * self.smooth_track.track[:, 2][:, None] 
+        l2 = self.smooth_track.track[:, :2] - self.smooth_track.nvecs * self.smooth_track.track[:, 3][:, None]
+
+        plt.plot(l1[:, 0], l1[:, 1], '-', color='red', linewidth=1) 
+        plt.plot(l2[:, 0], l2[:, 1], '-', color='red', linewidth=1) 
+
+        for i in range(len(l1)):
+            xs = [l1[i, 0], l2[i, 0]]
+            ys = [l1[i, 1], l2[i, 1]]
+            plt.plot(xs, ys, '-+', color='orange', markersize=10)
+
 
         plt.axis('equal')
         plt.show()
@@ -573,17 +585,24 @@ class LocalMapGenerator:
         return left_pts, right_pts
 
     def build_smooth_track(self):
-        c_line = np.zeros_like(self.boundary_1)
-        c_line[0] = (self.boundary_1[0] + self.boundary_2[0]) / 2
+        if self.boundary_extension_1 is not None:
+            boundary_1 = np.append(self.boundary_1, self.boundary_extension_1, axis=0)
+            boundary_2 = np.append(self.boundary_2, self.boundary_extension_2, axis=0)
+        else:
+            boundary_1 = self.boundary_1
+            boundary_2 = self.boundary_2
+
+        c_line = np.zeros_like(boundary_1)
+        c_line[0] = (boundary_1[0] + boundary_2[0]) / 2
         search_size = 2
-        for i in range(1, len(self.boundary_1)):
-            diff = (self.boundary_1[i-1] - self.boundary_2[i-1])
+        for i in range(1, len(boundary_1)):
+            diff = (boundary_1[i-1] - boundary_2[i-1])
             theta_1 = np.arctan2(diff[1], diff[0]) - np.pi/2
-            diff = (self.boundary_1[i] - self.boundary_2[i])
+            diff = (boundary_1[i] - boundary_2[i])
             theta_2 = np.arctan2(diff[1], diff[0]) - np.pi/2
             new_theta = (theta_1 + theta_2) / 2
 
-            line1 = [self.boundary_1[i], self.boundary_2[i]]
+            line1 = [boundary_1[i], boundary_2[i]]
             line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(new_theta), np.sin(new_theta)]) * search_size]
 
             intersection = calculate_intersection(line1, line2)
@@ -594,10 +613,11 @@ class LocalMapGenerator:
                 raise ValueError("No intersection found")
             c_line[i] = intersection
 
-        ws_1 = np.linalg.norm(c_line - self.boundary_1, axis=1)[:, None]
-        ws_2 = np.linalg.norm(c_line - self.boundary_2, axis=1)[:, None]
+        ws_1 = np.linalg.norm(c_line - boundary_1, axis=1)[:, None]
+        ws_2 = np.linalg.norm(c_line - boundary_2, axis=1)[:, None]
 
-        track = np.concatenate((c_line, ws_1, ws_2), axis=1)
+        # track = np.concatenate((c_line, ws_1, ws_2), axis=1)
+        track = np.concatenate((c_line, ws_2, ws_1), axis=1)
 
         return track
 
