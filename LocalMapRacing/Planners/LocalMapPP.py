@@ -20,7 +20,7 @@ MAX_STEER = 0.4
 MAX_SPEED = 8
 
 VERBOSE = False
-# VERBOSE = True
+VERBOSE = True
 
 class LocalMapPP:
     def __init__(self, test_name, map_name):
@@ -55,7 +55,8 @@ class LocalMapPP:
         if self.counter % 50 == 0:
             print(f"Counter: {self.counter}")
 
-        self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
+        self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]), save=True, counter=None)
+        print(f"{self.counter}: state: {obs['full_states'][0][:2]}")
         raceline = self.local_raceline.generate_raceline(self.local_map)
         
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
@@ -142,18 +143,18 @@ class LocalMapPP:
 
     def pure_pursuit_racing_line(self, obs):
         # current_progress = np.linalg.norm(self.local_raceline.raceline[0, :])
-        current_progress = 0
-        # lookahead = LOOKAHEAD_DISTANCE + current_progress
-        lookahead = LOOKAHEAD_DISTANCE 
-        # lookahead = 0.3 + obs['linear_vels_x'][0] * 0.15 + current_progress
-        lookahead = min(lookahead, self.local_raceline.s_track[-1]) 
-        lookahead_point = interp_2d_points(lookahead, self.local_raceline.s_track, self.local_raceline.raceline)
+        # current_progress = 0
+        # track_pt, current_s = self.local_raceline.calculate_statistics([0, 0])
+        # lookahead = LOOKAHEAD_DISTANCE 
+        # lookahead = min(lookahead, self.local_raceline.s_track[-1]) 
+        # lookahead_point = interp_2d_points(lookahead, self.local_raceline.s_track, self.local_raceline.raceline)
+
+        lookahead_point, speed = self.local_raceline.calculate_lookahead_point(LOOKAHEAD_DISTANCE)
 
         exact_lookahead = np.linalg.norm(lookahead_point)
         steering_angle = get_local_steering_actuation(lookahead_point, exact_lookahead, WHEELBASE)
         steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
         # steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
-        speed = np.interp(current_progress, self.local_raceline.s_track, self.local_raceline.vs) #* 0.8
         max_turning_speed = calculate_speed(steering_angle, f_s=0.99, max_v=8)
         # print(f"Speed: {speed:.3f}, Max turning speed: {max_turning_speed:.3f} --> Difference: {(speed - max_turning_speed):.3f}")
         speed = min(speed, max_turning_speed)

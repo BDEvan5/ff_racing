@@ -4,6 +4,8 @@ from scipy import interpolate
 from scipy import spatial
 import os
 from numba import njit
+from typing import Union
+import LocalMapRacing.tph_utils as tph
 
 
 def interp_2d_points(ss, xp, points):
@@ -75,12 +77,63 @@ def calculate_track_direction(pt_1, pt_2):
     return theta
 
 
+def do_lines_intersect(line1, line2):
+    x1, y1 = line1[0]
+    x2, y2 = line1[1]
+    x3, y3 = line2[0]
+    x4, y4 = line2[1]
+
+    # Calculate the slopes of the lines
+    slope1 = (y2 - y1) / (x2 - x1) if x2 - x1 != 0 else float('inf')
+    slope2 = (y4 - y3) / (x4 - x3) if x4 - x3 != 0 else float('inf')
+
+    # Check if the lines are parallel
+    if slope1 == slope2:
+        return False
+
+    # Calculate the y-intercepts of the lines
+    intercept1 = y1 - slope1 * x1
+    intercept2 = y3 - slope2 * x3
+
+    # Calculate the intersection point (x, y)
+    x = (intercept2 - intercept1) / (slope1 - slope2) if slope1 != float('inf') and slope2 != float('inf') else float('inf')
+    y = slope1 * x + intercept1 if slope1 != float('inf') else slope2 * x + intercept2
+
+    # Check if the intersection point lies within the line segments
+    if (min(x1, x2) <= x <= max(x1, x2)) and (min(y1, y2) <= y <= max(y1, y2)) and \
+       (min(x3, x4) <= x <= max(x3, x4)) and (min(y3, y4) <= y <= max(y3, y4)):
+        return True
+
+    return False
+
+
+def check_normals_crossing_complete(track):
+    crossing_horizon = min(5, len(track)//2 -1)
+
+    el_lengths = np.linalg.norm(np.diff(track[:, :2], axis=0), axis=1)
+    s_track = np.insert(np.cumsum(el_lengths), 0, 0)
+    psi, kappa = tph.calc_head_curv_num.calc_head_curv_num(track, el_lengths, False)
+    nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(psi-np.pi/2)
+
+    crossing = tph.check_normals_crossing.check_normals_crossing(track, nvecs, crossing_horizon)
+
+    return crossing
+
+
 def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
     s = interpolate.splev(t_glob, path, ext=3)
     s = np.concatenate(s)
     return spatial.distance.euclidean(p, s)
 
     
+def side_of_line(a: Union[tuple, np.ndarray],
+                 b: Union[tuple, np.ndarray],
+                 z: Union[tuple, np.ndarray]) -> float:
+
+    side = np.sign((b[0] - a[0]) * (z[1] - a[1]) - (b[1] - a[1]) * (z[0] - a[0]))
+
+    return side
+
 @njit(cache=True)
 def calculate_offset_coords(pts, position, heading):
     rotation = np.array([[np.cos(heading), -np.sin(heading)],

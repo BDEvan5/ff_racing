@@ -4,7 +4,7 @@ import LocalMapRacing.tph_utils as tph
 from matplotlib.collections import LineCollection
 np.set_printoptions(precision=4)
 from LocalMapRacing.local_mapping.local_map_utils import *
-
+from scipy import interpolate, optimize
 
 KAPPA_BOUND = 0.4
 VEHICLE_WIDTH = 0.8
@@ -43,6 +43,9 @@ class LocalRaceline:
         self.generate_max_speed_profile()
 
         raceline = np.concatenate([self.raceline, self.vs[:, None]], axis=-1)
+        
+        self.tck = interpolate.splprep([self.raceline[:, 0], self.raceline[:, 1]], k=3, s=0)[0]
+        
         return raceline
 
     def generate_minimum_curvature_path(self):
@@ -68,9 +71,31 @@ class LocalRaceline:
 
     def generate_max_speed_profile(self, starting_speed=V_MAX):
         mu = MU * np.ones_like(self.kappa_r) 
-        
 
         self.vs = tph.calc_vel_profile.calc_vel_profile(ax_max_machine, self.kappa_r, self.el_lengths_r, False, 0, VEHICLE_MASS, ggv=ggv, mu=mu, v_max=V_MAX, v_start=starting_speed)
+
+
+    def calculate_s(self, point):
+        dists = np.linalg.norm(point - self.raceline[:, :2], axis=1)
+        t_guess = self.s_track[np.argmin(dists)] / self.s_track[-1]
+
+        t_point = optimize.fmin(dist_to_p, x0=t_guess, args=(self.tck, point), disp=False)
+        interp_return = interpolate.splev(t_point, self.tck, ext=3)
+        closest_pt = np.array(interp_return).T
+        if len(closest_pt.shape) > 1: closest_pt = closest_pt[0]
+
+        return closest_pt, t_point
+
+    def calculate_lookahead_point(self, lookahead_distance):
+        track_pt, current_s = self.calculate_s([0, 0])
+        lookahead_s = current_s + lookahead_distance / self.s_track[-1]
+
+        lookahead_pt = np.array(interpolate.splev(lookahead_s, self.tck, ext=3)).T
+        if len(lookahead_pt.shape) > 1: lookahead_pt = lookahead_pt[0]
+
+        speed = np.interp(current_s, self.s_track/self.s_track[-1], self.vs)[0]
+
+        return lookahead_pt, speed
 
 
 def normalise_raceline(raceline, step_size, psis):
