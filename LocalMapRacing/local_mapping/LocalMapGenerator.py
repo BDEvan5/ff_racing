@@ -585,6 +585,61 @@ class LocalMapGenerator:
         return left_pts, right_pts
 
     def build_smooth_track(self):
+        """
+        This generates the list of center line points that keep the nvecs the same as they were before
+        - if the track is a dual-build track, then an extra point is added to preserve the last nvec
+        - if the track is extended, the last nvec is adjusted to keep the correct directions.
+        """
+        if self.boundary_extension_1 is not None:
+            boundary_1 = np.append(self.boundary_1, self.boundary_extension_1, axis=0)
+            boundary_2 = np.append(self.boundary_2, self.boundary_extension_2, axis=0)
+
+            nvecs = boundary_1 - boundary_2
+            psi_nvecs = np.arctan2(nvecs[:, 1], nvecs[:, 0])
+            psi_tanvecs = psi_nvecs + np.pi/2
+            c_line = np.zeros((boundary_1.shape[0], 2))
+        else:
+            boundary_1 = self.boundary_1
+            boundary_2 = self.boundary_2
+
+            nvecs = boundary_1 - boundary_2
+            psi_nvecs = np.arctan2(nvecs[:, 1], nvecs[:, 0])
+            psi_tanvecs = psi_nvecs + np.pi/2
+
+            extension = 0.6 * np.array([np.cos(psi_tanvecs[-1]), np.sin(psi_tanvecs[-1])])[:, None]
+            pt_1 = (boundary_1[-1, :] + extension)
+            pt_2 = (boundary_2[-1, :] + extension)
+            boundary_1 = np.append(boundary_1, pt_1, axis=0)
+            boundary_2 = np.append(boundary_2, pt_2, axis=0)
+            c_line = np.zeros((boundary_1.shape[0] - 1, 2))
+
+        c_line[0] = (boundary_1[0] + boundary_2[0]) / 2
+        search_size = 2
+        for i in range(1, len(c_line)):
+            theta = psi_tanvecs[i-1]
+            line1 = [boundary_1[i], boundary_2[i]]
+            if i == 1:
+                line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(theta), np.sin(theta)]) * search_size]
+            else:
+                line2 = [c_line[i-2], c_line[i-2] + np.array([np.cos(theta), np.sin(theta)]) * search_size]
+
+            intersection = calculate_intersection(line1, line2)
+            if intersection is None: # or intersection[0] == 1e9:
+                print(f"Line 1: {line1}")
+                print(f"Line 2: {line2}")
+                raise ValueError("No intersection found")
+            c_line[i] = intersection
+
+        ws_1 = np.linalg.norm(c_line - boundary_1[:len(c_line)], axis=1)[:, None]
+        ws_2 = np.linalg.norm(c_line - boundary_2[:len(c_line)], axis=1)[:, None]
+
+        track = np.concatenate((c_line, ws_2, ws_1), axis=1)
+
+        return track
+
+        
+
+    def build_smooth_track_old(self):
         if self.boundary_extension_1 is not None:
             boundary_1 = np.append(self.boundary_1, self.boundary_extension_1, axis=0)
             boundary_2 = np.append(self.boundary_2, self.boundary_extension_2, axis=0)
