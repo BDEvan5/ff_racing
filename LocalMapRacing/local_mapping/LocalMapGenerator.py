@@ -27,6 +27,8 @@ class LocalMapGenerator:
 
         self.local_map_data_path = path + f"LocalMapData_{map_name.upper()}/"
         ensure_path_exists(self.local_map_data_path)
+        self.local_map_imgs = path + f"LocalMapGenerators_{map_name.upper()}/"
+        ensure_path_exists(self.local_map_imgs)
         self.counter = 0
 
         self.line_1 = None
@@ -39,7 +41,7 @@ class LocalMapGenerator:
         self.boundary_extension_2 = None
         self.smooth_track = None
 
-    def generate_line_local_map(self, scan, save=True):
+    def generate_line_local_map(self, scan, save=True, counter=None):
         self.scan_xs = self.coses * scan
         self.scan_ys = self.sines * scan
 
@@ -47,46 +49,19 @@ class LocalMapGenerator:
         self.extract_boundaries(pts, pt_distances, inds)
         self.estimate_center_line_dual_boundary()
         self.extend_center_line_projection()
-        # left_pts, right_pts = self.estimate_center_line_clean(long_side, short_side)
 
-        # track = self.build_true_center_track()
-        # local_map = PlotLocalMap(track)
-
-        smooth_track = self.build_smooth_track()
-        local_map = PlotLocalMap(smooth_track)
+        local_track = self.build_local_track()
+        local_map = PlotLocalMap(local_track)
         # lm = LocalMap(track)
+
         self.smooth_track = local_map
-        self.plot_local_map_generation()
-
-
-        # local_map.plot_local_map(xs=xs_f, ys=ys_f)
-
-        # plt.plot(left_pts[:, 0], left_pts[:, 1], 'x', color='black', markersize=10)
-        # plt.plot(right_pts[:, 0], right_pts[:, 1], 'x', color='black', markersize=10)
-        
-        # plt.plot(true_center_line[:, 0], true_center_line[:, 1], '*', color='green', markersize=10)
-
-        # for i in range(left_pts.shape[0]):
-        #     plt.plot([left_pts[i, 0], right_pts[i, 0]], [left_pts[i, 1], right_pts[i, 1]], color='black', linewidth=1)
-
-
-        # line_1.plot_line()
-        # line_2.plot_line()
-
-        plt.pause(0.0001)
+        if counter != None:
+            self.plot_local_map_generation(counter)
 
         if save: np.save(self.local_map_data_path + f"local_map_{self.counter}", local_map.track)
         self.counter += 1
 
         return local_map
-    
-    def build_true_center_track(self):
-        true_center_line = (self.boundary_1 + self.boundary_2) / 2
-        ws = np.linalg.norm(self.boundary_1 - true_center_line, axis=1)
-        ws = ws[:, None] * np.ones_like(true_center_line)
-        track = np.concatenate([true_center_line, ws], axis=1)
-
-        return track
 
     def extract_track_lines(self):
         pts = np.hstack((self.scan_xs[:, None], self.scan_ys[:, None]))
@@ -114,7 +89,6 @@ class LocalMapGenerator:
         i = 1
         while (np.all(line_1_pts[:, 0] < -0.8) or np.all(np.abs(line_1_pts[:, 1]) > 2.5)) and i < len(inds):
             min_ind2 = np.min(arr_inds[i:]) 
-            # print(f"{i}: Line 1 problem: shift ind from {min_ind} to {min_ind2}")
             line_1_pts = pts[min_ind+2:min_ind2]
             min_ind = min_ind2
             i += 1
@@ -123,30 +97,9 @@ class LocalMapGenerator:
         i = 1
         while (np.all(line_1_pts[:, 0] < -0.8) or np.all(np.abs(line_1_pts[:, 1]) > 2.5)) and i < len(inds):
             max_ind2 = np.max(arr_inds[:-i])
-            # print(f"{i}: Line 2 problem: shift ind from {max_ind} to {max_ind2}")
             line_1_pts = pts[max_ind2+2:max_ind]
             max_ind = max_ind2
             i += 1
-
-        # plt.figure(5)
-        # plt.plot(pts[:, 0], pts[:, 1], '.', color='blue', alpha=0.4)
-
-        # plot_inds = np.append(inds, len(pts)-2)
-        # plot_inds = np.insert(plot_inds, 0, 0)
-        # for i in range(len(inds)+1):
-        #     ind_1 = plot_inds[i] + 2
-        #     ind_2 = plot_inds[i+1] 
-        #     pt1 = pts[ind_1]
-        #     pt2 = pts[ind_2]
-        #     xs = [pt1[0], pt2[0]]
-        #     ys = [pt1[1], pt2[1]]
-        #     plt.plot(xs, ys, color='pink', linewidth=3)
-
-        # plt.plot(line_1_pts[:, 0], line_1_pts[:, 1], '-x', color='red', markersize=10)
-        # plt.plot(line_2_pts[:, 0], line_2_pts[:, 1], '-x', color='red', markersize=10)
-
-        # plt.axis('equal')
-        # plt.show()
 
         self.line_1 = TrackBoundary(line_1_pts, True)
         self.line_2 = TrackBoundary(line_2_pts, True)
@@ -170,7 +123,7 @@ class LocalMapGenerator:
 
     def estimate_center_line_dual_boundary(self):
         search_pt = [-1, 0]
-        max_pts = 30
+        max_pts = 50
         end_threshold = 0.05
         self.boundary_1 = np.zeros((max_pts, 2))
         self.boundary_2 = np.zeros((max_pts, 2))
@@ -187,7 +140,6 @@ class LocalMapGenerator:
             center_pts[i] = line_center
 
             if np.all(np.isclose(pt_1, self.boundary_1[i-1])) and np.all(np.isclose(pt_2, self.boundary_2[i-1])): 
-                print(f"{i}-> Adding redundant points -- > move to projection")
                 i -= 1
                 break
 
@@ -197,18 +149,14 @@ class LocalMapGenerator:
             long_distance = np.linalg.norm(pt_1 - self.line_1.points[-1])
             short_distance = np.linalg.norm(pt_2 - self.line_2.points[-1])
             if long_distance < end_threshold and short_distance < end_threshold:
-                print(f"{i}-> Breaking because of long ({long_distance}) and short ({short_distance}) distances")
-                print(f"Pt1: {pt_1} :: Pt2: {pt_2}")
+                # print(f"{i}-> Breaking because of long ({long_distance}) and short ({short_distance}) distances >>> Pt1: {pt_1} :: Pt2: {pt_2}")
                 break
-
-        if i == max_pts - 1:
-            print(f"Reached max number of points")
 
         self.boundary_1 = self.boundary_1[:i+1]
         self.boundary_2 = self.boundary_2[:i+1]
 
         if len(self.boundary_1) < 2:
-            print(f"Only {len(self.boundary_1)} points found. This is a problem")
+            raise RuntimeError("Not enough points found -> {len(self.boundary_1)}")
 
     def extend_center_line_projection(self):
         if self.max_s_1 > 0.99 and self.max_s_2 > 0.99:
@@ -220,7 +168,6 @@ class LocalMapGenerator:
         dists = np.linalg.norm(np.diff(true_center_line, axis=0), axis=1)
         center_point_threshold = 0.2
         removal_n = np.sum(dists < center_point_threshold)
-        print(f"Remove: {removal_n}")
 
         self.boundary_1 = self.boundary_1[:-removal_n]
         self.boundary_2 = self.boundary_2[:-removal_n]
@@ -236,17 +183,14 @@ class LocalMapGenerator:
             direction = 1
 
         _pt, current_s = projection_line.find_closest_point(boundary[-1], 0)
-        print(f"Current_s: {current_s}")
         length_remaining = (1-current_s[0]) * projection_line.cs[-1]
         if length_remaining < 1:
             self.boundary_extension_1 = None
             self.boundary_extension_2 = None
-            print(f"length_remaining: {length_remaining} < 1 m")
             return # no extension required
 
         step_size = 0.5
         n_pts = int((1-current_s[0]) * projection_line.cs[-1] / step_size + 1)
-        print(f"Length: {length_remaining}, n_pts: {n_pts}")
         new_boundary_points = projection_line.extract_line_portion(np.linspace(current_s[0], 1, n_pts))
         new_projection_line = LocalLine(new_boundary_points)
 
@@ -266,7 +210,99 @@ class LocalMapGenerator:
         self.boundary_1 = self.boundary_1[:-1]
         self.boundary_2 = self.boundary_2[:-1]
 
-    def plot_local_map_generation(self):
+    def calculate_next_boundaries(self, pt_1, pt_2):
+        step_size = 0.6
+        line_center = (pt_1 + pt_2) / 2
+        theta = calculate_track_direction(pt_1, pt_2)
+
+        weighting = 0.7
+        search_pt_a = (pt_2 * (weighting) + line_center * (1- weighting)) 
+        search_pt_b = (pt_1 * (weighting) + line_center * (1- weighting)) 
+        search_pt_a = search_pt_a + step_size * np.array([np.cos(theta), np.sin(theta)])
+        search_pt_b = search_pt_b + step_size * np.array([np.cos(theta), np.sin(theta)])
+
+        pt_1_a, max_s_1_a = self.line_1.find_closest_point(search_pt_a, self.max_s_1, "Line1_a")
+        pt_2_a, max_s_2_a = self.line_2.find_closest_point(search_pt_a, self.max_s_2, "Line2_a")
+
+        pt_1_b, max_s_1_b = self.line_1.find_closest_point(search_pt_b, self.max_s_1, "Line1_b")
+        pt_2_b, max_s_2_b = self.line_2.find_closest_point(search_pt_b, self.max_s_2, "Line2_b")
+
+        # test to find the best candidate
+        sum_s_a = max_s_1_a + max_s_2_a
+        sum_s_b = max_s_1_b + max_s_2_b
+
+        if sum_s_a < sum_s_b:
+            pt_1, self.max_s_1 = pt_1_a, max_s_1_a
+            pt_2, self.max_s_2 = pt_2_a, max_s_2_a
+            search_pt = search_pt_a
+        else:
+            pt_1, self.max_s_1 = pt_1_b, max_s_1_b
+            pt_2, self.max_s_2 = pt_2_b, max_s_2_b
+            search_pt = search_pt_b
+
+        return pt_1, pt_2, search_pt
+
+    def build_local_track(self):
+        """
+        This generates the list of center line points that keep the nvecs the same as they were before
+        - if the track is a dual-build track, then an extra point is added to preserve the last nvec
+        - if the track is extended, the last nvec is adjusted to keep the correct directions.
+        """
+        if self.boundary_extension_1 is not None:
+            boundary_1 = np.append(self.boundary_1, self.boundary_extension_1, axis=0)
+            boundary_2 = np.append(self.boundary_2, self.boundary_extension_2, axis=0)
+
+            nvecs = boundary_1 - boundary_2
+            psi_nvecs = np.arctan2(nvecs[:, 1], nvecs[:, 0])
+            psi_tanvecs = psi_nvecs + np.pi/2
+            c_line = np.zeros((boundary_1.shape[0], 2))
+        else:
+            boundary_1 = self.boundary_1
+            boundary_2 = self.boundary_2
+
+            nvecs = boundary_1 - boundary_2
+            psi_nvecs = np.arctan2(nvecs[:, 1], nvecs[:, 0])
+            psi_tanvecs = psi_nvecs + np.pi/2
+
+            # extension = 0.8 * np.array([np.cos(psi_tanvecs[-1]), np.sin(psi_tanvecs[-1])])[:, None]
+            # pt_1 = (boundary_1[-1, :] + extension)
+            # pt_2 = (boundary_2[-1, :] + extension)
+            # boundary_1 = np.append(boundary_1, pt_1, axis=0)
+            # boundary_2 = np.append(boundary_2, pt_2, axis=0)
+            # c_line = np.zeros((boundary_1.shape[0] - 1, 2))
+            c_line = np.zeros((boundary_1.shape[0], 2))
+
+        c_line[0] = (boundary_1[0] + boundary_2[0]) / 2
+        search_size = 2
+        for i in range(1, len(c_line)):
+            theta = psi_tanvecs[i-1]
+            line1 = [boundary_1[i], boundary_2[i]]
+            if i == 1:
+                line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(theta), np.sin(theta)]) * search_size]
+            else:
+                line2 = [c_line[i-2], c_line[i-2] + np.array([np.cos(theta), np.sin(theta)]) * search_size]
+
+            intersection = calculate_intersection(line1, line2)
+            if intersection is None: # or intersection[0] == 1e9:
+                raise ValueError(f"No intersection found between {line1} and {line2}")
+            c_line[i] = intersection
+
+        ws_1 = np.linalg.norm(c_line - boundary_1[:len(c_line)], axis=1)[:, None]
+        ws_2 = np.linalg.norm(c_line - boundary_2[:len(c_line)], axis=1)[:, None]
+
+        track = np.concatenate((c_line, ws_2, ws_1), axis=1)
+
+        return track
+
+    def build_true_center_track(self):
+        true_center_line = (self.boundary_1 + self.boundary_2) / 2
+        ws = np.linalg.norm(self.boundary_1 - true_center_line, axis=1)
+        ws = ws[:, None] * np.ones_like(true_center_line)
+        track = np.concatenate([true_center_line, ws], axis=1)
+
+        return track
+
+    def plot_local_map_generation(self, counter):
         plt.figure(2)
         plt.clf()
 
@@ -306,396 +342,17 @@ class LocalMapGenerator:
             ys = [l1[i, 1], l2[i, 1]]
             plt.plot(xs, ys, '-+', color='orange', markersize=10)
 
-
         plt.axis('equal')
-        plt.show()
+        plt.tight_layout()
+        name = self.local_map_imgs + f"LocalMapGeneration_{counter}"
+        plt.savefig(name + ".svg", bbox_inches="tight")
 
-
-    def calculate_next_boundaries(self, pt_1, pt_2):
-        step_size = 0.6
-        line_center = (pt_1 + pt_2) / 2
-        theta = calculate_track_direction(pt_1, pt_2)
-
-        weighting = 0.7
-        search_pt_a = (pt_2 * (weighting) + line_center * (1- weighting)) 
-        search_pt_b = (pt_1 * (weighting) + line_center * (1- weighting)) 
-        search_pt_a = search_pt_a + step_size * np.array([np.cos(theta), np.sin(theta)])
-        search_pt_b = search_pt_b + step_size * np.array([np.cos(theta), np.sin(theta)])
-
-        pt_1_a, max_s_1_a = self.line_1.find_closest_point(search_pt_a, self.max_s_1, "Line1_a")
-        pt_2_a, max_s_2_a = self.line_2.find_closest_point(search_pt_a, self.max_s_2, "Line2_a")
-
-        pt_1_b, max_s_1_b = self.line_1.find_closest_point(search_pt_b, self.max_s_1, "Line1_b")
-        pt_2_b, max_s_2_b = self.line_2.find_closest_point(search_pt_b, self.max_s_2, "Line2_b")
-
-        # test to find the best candidate
-        sum_s_a = max_s_1_a + max_s_2_a
-        sum_s_b = max_s_1_b + max_s_2_b
-
-        if sum_s_a < sum_s_b:
-            pt_1, self.max_s_1 = pt_1_a, max_s_1_a
-            pt_2, self.max_s_2 = pt_2_a, max_s_2_a
-            search_pt = search_pt_a
-        else:
-            pt_1, self.max_s_1 = pt_1_b, max_s_1_b
-            pt_2, self.max_s_2 = pt_2_b, max_s_2_b
-            search_pt = search_pt_b
-
-        return pt_1, pt_2, search_pt
-
-    def estimate_center_line_devel(self, xs=None, ys=None):
-        plt.figure(2)
-        plt.clf()
-        if xs is not None and ys is not None:
-            plt.plot(xs, ys, '.', color='#45aaf2', alpha=0.1)
-        plt.plot(0, 0, 'x', markersize=14, color='red')
-
-        self.line_1.plot_line()
-        self.line_2.plot_line()
-        
-        search_pt = np.zeros(2)
-        search_pt[0] = -1 # start before beginning
-        step_size = 0.6
-        max_pts = 20
-        end_threshold = 0.05
-        theta = 0
-        boundary_1, boundary_2 = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
-        center_pts = np.zeros((max_pts, 2))
-        max_s_1, max_s_2 = 0, 0
-        z = 0
-        through_positive_corner = False
-        ready_to_extend_line = False
-        for i in range(max_pts):
-            # plt.plot(search_pt[0], search_pt[1], '.', color='red', markersize=10)
-            if i == 0:
-                pt_1, max_s_1 = self.line_1.find_closest_point(search_pt, max_s_1, "Line1")
-                pt_2, max_s_2 = self.line_2.find_closest_point(search_pt, max_s_2, "Line2")
-            else:
-                theta = calculate_track_direction(pt_1, pt_2)
-
-                weighting = 0.7
-                search_pt_a = (pt_2 * (weighting) + line_center * (1- weighting)) 
-                search_pt_b = (pt_1 * (weighting) + line_center * (1- weighting)) 
-                search_pt_a = search_pt_a + step_size * np.array([np.cos(theta), np.sin(theta)])
-                search_pt_b = search_pt_b + step_size * np.array([np.cos(theta), np.sin(theta)])
-
-                plt.plot(search_pt_a[0], search_pt_a[1], '.', color='red', markersize=10)
-                plt.plot(search_pt_b[0], search_pt_b[1], '+', color='red', markersize=10)
-
-                pt_1_a, max_s_1_a = self.line_1.find_closest_point(search_pt_a, max_s_1, "Line1_a")
-                pt_2_a, max_s_2_a = self.line_2.find_closest_point(search_pt_a, max_s_2, "Line2_a")
-
-                pt_1_b, max_s_1_b = self.line_1.find_closest_point(search_pt_b, max_s_1, "Line1_b")
-                pt_2_b, max_s_2_b = self.line_2.find_closest_point(search_pt_b, max_s_2, "Line2_b")
-
-                # test to find the best candidate
-                sum_s_a = max_s_1_a + max_s_2_a
-                sum_s_b = max_s_1_b + max_s_2_b
-
-                if sum_s_a < sum_s_b:
-                    pt_1, max_s_1 = pt_1_a, max_s_1_a
-                    pt_2, max_s_2 = pt_2_a, max_s_2_a
-                    search_pt = search_pt_a
-                else:
-                    pt_1, max_s_1 = pt_1_b, max_s_1_b
-                    pt_2, max_s_2 = pt_2_b, max_s_2_b
-                    search_pt = search_pt_b
-
-            line_center = (pt_1 + pt_2) / 2
-            center_pts[i] = line_center
-
-            if np.all(np.isclose(pt_1, boundary_1[i-1])) and np.all(np.isclose(pt_2, boundary_2[i-1])): 
-                print("Adding redundant points -- > move to projection")
-                ready_to_extend_line = True
-                i -= 1 # remove last two points
-                break
-
-            if max_s_2 > 0.95:
-                # consider a problem...
-                previous_edge_diff = pt_1 - boundary_1[i-1] 
-                previous_edge_heading = np.arctan2(previous_edge_diff[1], previous_edge_diff[0])
-                center_curvature = calculate_curvature(center_pts[:i+1])
-
-                n_diff = pt_1 - pt_2
-                proposed_track_heading = np.arctan2(n_diff[1], n_diff[0]) - np.pi/2
-                d_track_heading = proposed_track_heading - previous_edge_heading
-                # print(f"{i} -> d_head {d_track_heading} --> Curvature: {center_curvature}")
-
-                if d_track_heading > 0:
-                    through_positive_corner = True
-                
-                if through_positive_corner and d_track_heading < 0:
-                    print(f"Ready to extend line - {d_track_heading}")
-                    ready_to_extend_line = True
-                    break
-
-                if d_track_heading < -0.2 and abs(center_curvature) < 0.01:
-                    print(f"Ready to extend line -- heading difference too large")
-                    ready_to_extend_line = True
-                    break
-
-            boundary_1[i] = pt_1
-            boundary_2[i] = pt_2
-            
-            long_distance = np.linalg.norm(pt_1 - line_1.points[-1])
-            short_distance = np.linalg.norm(pt_2 - line_2.points[-1])
-            if long_distance < end_threshold and short_distance < end_threshold:
-                print(f"Breaking because of long ({long_distance}) and short ({short_distance}) distances")
-                print(f"Pt1: {pt_1} :: Pt2: {pt_2}")
-                # i += 1 # include last point
-                break
-
-            plt.plot(search_pt[0], search_pt[1], '*', color='blue', markersize=10, alpha=0.2)
-            plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
-            # plt.plot(adjusted_line_center[0], adjusted_line_center[1], '*', color='purple', markersize=10)
-            # c_xs = [adjusted_line_center[0], center_pt[0]]
-            # c_ys = [adjusted_line_center[1], center_pt[1]]
-            # plt.plot(c_xs, c_ys, '-', color='purple')
-
-            plt.plot(pt_1[0], pt_1[1], 'x', color='black', markersize=10)
-            plt.plot(pt_2[0], pt_2[1], 'x', color='black', markersize=10)
-            xs = [pt_1[0], pt_2[0]]
-            ys = [pt_1[1], pt_2[1]]
-            plt.plot(xs, ys, '-', color='black')
-
-        if i == max_pts - 1:
-            print(f"Reached max number of points")
-            # plt.show()
-            # print(f"No points found - make via extension")
-            # ready_to_extend_line = True
-            # i = 0
-            # z = 0
-            # plt.axis('equal')
-            # plt.show()
-
-        k = 0
-        # if ready_to_extend_line:/
-        if False:
-            print(f"Extending lines.... from {i} onwards")
-            for k in range(i, max_pts):
-                pt_1, max_s_1 = long_bound.find_closest_point(center_pt, max_s_1)
-                
-                previous_edge_diff = pt_1 - boundary_1[k-1] 
-                previous_edge_heading = np.arctan2(previous_edge_diff[1], previous_edge_diff[0])
-                nvec_angle = previous_edge_heading + np.pi/2
-                pt_2 = pt_1 - TRACK_WIDTH * np.array([np.cos(nvec_angle), np.sin(nvec_angle)])
-                # print(f"New proposed point: {short_pt}")
-
-                new_line = [pt_2, pt_1]
-                old_line = [boundary_1[k-1], boundary_2[k-1]]
-                if do_lines_intersect(new_line, old_line):
-                    print(f"Lines intersect: Move on....")
-                    break
-
-                boundary_1[k] = pt_1
-                boundary_2[k] = pt_2
-                
-                long_distance = np.linalg.norm(pt_1 - long_bound.points[-1])
-                if long_distance < end_threshold:
-                    print(f"Breaking long distance")
-                    break
-
-                n_diff = pt_1 - pt_2
-                heading = np.arctan2(n_diff[1], n_diff[0])
-                new_theta = heading - np.pi/2
-                d_theta = new_theta - theta
-                theta = new_theta
-
-                line_center = (pt_1 + pt_2) / 2
-                weighting = np.clip(abs(d_theta) / 0.2, 0, 0.8)
-                # print(f"Weighting: {weighting}")
-                if d_theta > 0:
-                    adjusted_line_center = (pt_2 * (weighting) + line_center * (1- weighting)) 
-                else:
-                    adjusted_line_center = (pt_1 * (weighting) + line_center * (1- weighting)) 
-
-                center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
-
-                plt.plot(center_pt[0], center_pt[1], '*', color='blue', markersize=10)
-                plt.plot(line_center[0], line_center[1], '*', color='orange', markersize=10)
-                plt.plot(adjusted_line_center[0], adjusted_line_center[1], '*', color='purple', markersize=10)
-                c_xs = [adjusted_line_center[0], center_pt[0]]
-                c_ys = [adjusted_line_center[1], center_pt[1]]
-                plt.plot(c_xs, c_ys, '-', color='purple')
-
-                plt.plot(pt_1[0], pt_1[1], 'x', color='black', markersize=10)
-                plt.plot(pt_2[0], pt_2[1], 'x', color='black', markersize=10)
-                xs = [pt_1[0], pt_2[0]]
-                ys = [pt_1[1], pt_2[1]]
-                plt.plot(xs, ys, '-', color='black')
-
-
-        plt.axis('equal')
-        # plt.show()
-        plt.pause(0.00001)
-        end_ind = max(i, k)
-        boundary_1 = np.array(boundary_1[z:end_ind+1])
-        boundary_2 = np.array(boundary_2[z:end_ind+1])
-
-        if len(boundary_1) < 2:
-            print(f"Only {len(boundary_1)} points found. This is a problem")
-
-
-        return boundary_1, boundary_2
-
-    def estimate_center_line_clean(self, long_side, short_side):
-        long_bound =  TrackBoundary(long_side)
-        short_bound = TrackBoundary(short_side)
-        long_bound.plot_line()
-        short_bound.plot_line()
-        
-        center_pt = np.zeros(2)
-        step_size = 0.6
-        max_pts = 30
-        end_threshold = 0.1
-        theta = 0
-        left_pts, right_pts = np.zeros((max_pts, 2)), np.zeros((max_pts, 2))
-        max_long_s, max_short_s = 0, 0
-        for i in range(max_pts):
-            long_pt, max_long_s = long_bound.find_closest_point(center_pt, max_long_s)
-            short_pt, max_short_s = short_bound.find_closest_point(center_pt, max_short_s)
-
-
-
-            left_pts[i] = long_pt
-            right_pts[i] = short_pt
-            
-            long_distance = np.linalg.norm(long_pt - long_bound.points[-1])
-            short_distance = np.linalg.norm(short_pt - short_bound.points[-1])
-            if long_distance < end_threshold and short_distance < end_threshold:
-                break
-
-            n_diff = long_pt - short_pt
-            new_theta = np.arctan2(n_diff[1], n_diff[0]) - np.pi/2
-            d_theta = new_theta - theta
-            theta = new_theta
-
-            line_center = (long_pt + short_pt) / 2
-            weighting = np.clip(abs(d_theta) / 0.2, 0, 0.8)
-            if d_theta > 0:
-                adjusted_line_center = (short_pt * (weighting) + line_center * (1- weighting)) 
-            else:
-                adjusted_line_center = (long_pt * (weighting) + line_center * (1- weighting)) 
-
-            center_pt = adjusted_line_center + step_size * np.array([np.cos(theta), np.sin(theta)])
-
-        left_pts = np.array(left_pts[:i+1])
-        right_pts = np.array(right_pts[:i+1])
-
-        return left_pts, right_pts
-
-    def build_smooth_track(self):
-        """
-        This generates the list of center line points that keep the nvecs the same as they were before
-        - if the track is a dual-build track, then an extra point is added to preserve the last nvec
-        - if the track is extended, the last nvec is adjusted to keep the correct directions.
-        """
-        if self.boundary_extension_1 is not None:
-            boundary_1 = np.append(self.boundary_1, self.boundary_extension_1, axis=0)
-            boundary_2 = np.append(self.boundary_2, self.boundary_extension_2, axis=0)
-
-            nvecs = boundary_1 - boundary_2
-            psi_nvecs = np.arctan2(nvecs[:, 1], nvecs[:, 0])
-            psi_tanvecs = psi_nvecs + np.pi/2
-            c_line = np.zeros((boundary_1.shape[0], 2))
-        else:
-            boundary_1 = self.boundary_1
-            boundary_2 = self.boundary_2
-
-            nvecs = boundary_1 - boundary_2
-            psi_nvecs = np.arctan2(nvecs[:, 1], nvecs[:, 0])
-            psi_tanvecs = psi_nvecs + np.pi/2
-
-            extension = 0.6 * np.array([np.cos(psi_tanvecs[-1]), np.sin(psi_tanvecs[-1])])[:, None]
-            pt_1 = (boundary_1[-1, :] + extension)
-            pt_2 = (boundary_2[-1, :] + extension)
-            boundary_1 = np.append(boundary_1, pt_1, axis=0)
-            boundary_2 = np.append(boundary_2, pt_2, axis=0)
-            c_line = np.zeros((boundary_1.shape[0] - 1, 2))
-
-        c_line[0] = (boundary_1[0] + boundary_2[0]) / 2
-        search_size = 2
-        for i in range(1, len(c_line)):
-            theta = psi_tanvecs[i-1]
-            line1 = [boundary_1[i], boundary_2[i]]
-            if i == 1:
-                line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(theta), np.sin(theta)]) * search_size]
-            else:
-                line2 = [c_line[i-2], c_line[i-2] + np.array([np.cos(theta), np.sin(theta)]) * search_size]
-
-            intersection = calculate_intersection(line1, line2)
-            if intersection is None: # or intersection[0] == 1e9:
-                print(f"Line 1: {line1}")
-                print(f"Line 2: {line2}")
-                raise ValueError("No intersection found")
-            c_line[i] = intersection
-
-        ws_1 = np.linalg.norm(c_line - boundary_1[:len(c_line)], axis=1)[:, None]
-        ws_2 = np.linalg.norm(c_line - boundary_2[:len(c_line)], axis=1)[:, None]
-
-        track = np.concatenate((c_line, ws_2, ws_1), axis=1)
-
-        return track
-
-        
-
-    def build_smooth_track_old(self):
-        if self.boundary_extension_1 is not None:
-            boundary_1 = np.append(self.boundary_1, self.boundary_extension_1, axis=0)
-            boundary_2 = np.append(self.boundary_2, self.boundary_extension_2, axis=0)
-        else:
-            boundary_1 = self.boundary_1
-            boundary_2 = self.boundary_2
-
-        c_line = np.zeros_like(boundary_1)
-        c_line[0] = (boundary_1[0] + boundary_2[0]) / 2
-        search_size = 2
-        for i in range(1, len(boundary_1)):
-            diff = (boundary_1[i-1] - boundary_2[i-1])
-            theta_1 = np.arctan2(diff[1], diff[0]) - np.pi/2
-            diff = (boundary_1[i] - boundary_2[i])
-            theta_2 = np.arctan2(diff[1], diff[0]) - np.pi/2
-            new_theta = (theta_1 + theta_2) / 2
-
-            line1 = [boundary_1[i], boundary_2[i]]
-            line2 = [c_line[i-1], c_line[i-1] + np.array([np.cos(new_theta), np.sin(new_theta)]) * search_size]
-
-            intersection = calculate_intersection(line1, line2)
-            # print(f"Intersection: {intersection}")
-            if intersection is None: # or intersection[0] == 1e9:
-                print(f"Line 1: {line1}")
-                print(f"Line 2: {line2}")
-                raise ValueError("No intersection found")
-            c_line[i] = intersection
-
-        ws_1 = np.linalg.norm(c_line - boundary_1, axis=1)[:, None]
-        ws_2 = np.linalg.norm(c_line - boundary_2, axis=1)[:, None]
-
-        # track = np.concatenate((c_line, ws_1, ws_2), axis=1)
-        track = np.concatenate((c_line, ws_2, ws_1), axis=1)
-
-        return track
-
-
-
-def calculate_curvature(pts):
-    d1 = pts[-1] - pts[-2]
-    d2 = pts[-2] - pts[-3]
-    head1 = np.arctan2(d1[1], d1[0])
-    head2 = np.arctan2(d2[1], d2[0])
-    distance = np.linalg.norm(pts[1] - pts[-3])
-    curvature = (head2 - head1)/distance
-
-    return curvature
-    
 
 class TrackBoundary:
     def __init__(self, points, smoothing=False) -> None:        
         self.smoothing_s = 0.5
-        # print(f"Pts start: {points[0,0]} --> end: {points[-1,0]}")
         if points[0, 0] > points[-1, 0]:
             self.points = np.flip(points, axis=0)
-            # print(f"FLIPPED :: New Pts start: {self.points[0,0]} --> end: {self.points[-1,0]}")
         else:
             self.points = points
 
@@ -715,11 +372,8 @@ class TrackBoundary:
 
         closest_t = optimize.fmin(dist_to_p, x0=t_guess, args=(self.tck, pt), disp=False)
         if closest_t < 0:
-            # print(f"{string}: Guess, {t_guess:.3f}; Closest_t {closest_t}, Previous {previous_maximum}")
             return self.points[0], closest_t
         t_pt = max(closest_t, previous_maximum)
-
-        # print(f"{string}: Guess, {t_guess:.3f}; Closest_t {closest_t}, Previous {previous_maximum}")
 
         interp_return = interpolate.splev(t_pt, self.tck)
         closest_pt = np.array(interp_return).T
@@ -748,11 +402,6 @@ class TrackBoundary:
         # the first step smooths the points and the second step ensures the correct spacing.
         # TODO: this could be achieved using the same tck and just recalculating the s values based on the new lengths. Do this for computational speedup.
 
-def dist_to_p(t_glob: np.ndarray, path: list, p: np.ndarray):
-    s = interpolate.splev(t_glob, path, ext=3)
-    s = np.concatenate(s)
-    return spatial.distance.euclidean(p, s)
-
 
 class LocalLine:
     def __init__(self, track):
@@ -771,87 +420,8 @@ class LocalLine:
         self.psi, self.kappa = tph.calc_head_curv_num.calc_head_curv_num(self.track, self.el_lengths, False)
         self.nvecs = tph.calc_normal_vectors_ahead.calc_normal_vectors_ahead(self.psi-np.pi/2)
 
-def calculate_track_direction(pt_1, pt_2):
-    n_diff = pt_1 - pt_2
-    heading = np.arctan2(n_diff[1], n_diff[0])
-    theta = heading + np.pi/2
-
-    if theta > np.pi:
-        theta = theta - 2 * np.pi
-    elif theta < -np.pi:
-        theta = theta + 2 * np.pi
-
-    return theta
 
 
-# @njit(cache=True)
-def calculate_intersection(line1, line2):
-    x1, y1 = line1[0]
-    x2, y2 = line1[1]
-    x3, y3 = line2[0]
-    x4, y4 = line2[1]
-
-    # Calculate the slopes of the lines
-    if x2 - x1 != 0:
-        slope1 = (y2 - y1) / (x2 - x1)  
-    else:
-        slope1 = 1e9
-    
-    if x4 - x3!= 0:
-        slope2 = (y4 - y3) / (x4 - x3)
-    else:
-        slope2 = 1e9
-
-    # Check if the lines are parallel
-    if slope1 == slope2:
-        return None
-
-    # Calculate the y-intercepts of the lines
-    intercept1 = y1 - slope1 * x1
-    intercept2 = y3 - slope2 * x3
-
-    # Calculate the intersection point (x, y)
-    if slope1 == 1e9:
-        x = x1
-        y = slope2 * x + intercept2
-    if slope2 == 1e9:
-        x = x3
-        y = slope1 * x + intercept1
-    else:
-        x = (intercept2 - intercept1) / (slope1 - slope2)
-        y = slope1 * x + intercept1 # can use either
-
-    return np.array([x, y])
-
-
-def do_lines_intersect(line1, line2):
-    x1, y1 = line1[0]
-    x2, y2 = line1[1]
-    x3, y3 = line2[0]
-    x4, y4 = line2[1]
-
-    # Calculate the slopes of the lines
-    slope1 = (y2 - y1) / (x2 - x1) if x2 - x1 != 0 else float('inf')
-    slope2 = (y4 - y3) / (x4 - x3) if x4 - x3 != 0 else float('inf')
-
-    # Check if the lines are parallel
-    if slope1 == slope2:
-        return False
-
-    # Calculate the y-intercepts of the lines
-    intercept1 = y1 - slope1 * x1
-    intercept2 = y3 - slope2 * x3
-
-    # Calculate the intersection point (x, y)
-    x = (intercept2 - intercept1) / (slope1 - slope2) if slope1 != float('inf') and slope2 != float('inf') else float('inf')
-    y = slope1 * x + intercept1 if slope1 != float('inf') else slope2 * x + intercept2
-
-    # Check if the intersection point lies within the line segments
-    if (min(x1, x2) <= x <= max(x1, x2)) and (min(y1, y2) <= y <= max(y1, y2)) and \
-       (min(x3, x4) <= x <= max(x3, x4)) and (min(y3, y4) <= y <= max(y3, y4)):
-        return True
-
-    return False
 
 if __name__ == "__main__":
     pass

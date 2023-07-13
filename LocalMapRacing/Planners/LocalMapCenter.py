@@ -55,21 +55,9 @@ class LocalMapCenter:
         if self.counter % 50 == 0:
             print(f"Counter: {self.counter}")
 
-        self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]))
+        # self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]), save=True, counter=self.counter)
+        self.local_map = self.local_map_generator.generate_line_local_map(np.copy(obs['scans'][0]), save=True, counter=None)
         print(f"{self.counter}: state: {obs['full_states'][0][:2]}")
-        # self.local_map.plot_local_map()
-
-        # plt.pause(0.000001)
-        # self.local_map.interpolate_track(0.8)
-        # self.local_map.plot_local_map_offset(np.array([0, 0]), 0, self.map_data.map_origin[:2], self.map_data.map_resolution, save_path=self.online_lm_path, counter=self.counter)
-        # self.local_map.plot_local_map(self.online_std_path, self.counter)
-
-        # if self.counter == 48:
-        #     print("Stop here")
-
-        # crossing = self.local_map.adjust_center_line_smoothing(self.counter, self.lm_smooth_path)
-        # if crossing:
-        #     print(f"Crossing detected at {self.counter}")
 
         position = np.array([obs['poses_x'][0], obs['poses_y'][0]])
         heading = obs['full_states'][0][4]
@@ -78,7 +66,6 @@ class LocalMapCenter:
 
         self.vehicle_state_history.add_memory_entry(obs, action)
 
-        VERBOSE = False
         if VERBOSE:
         # if  self.counter < 150:
         # if self.counter > 50 and self.counter < 150:
@@ -114,7 +101,6 @@ class LocalMapCenter:
 
             plt.close()
 
-
         self.counter += 1
         return action
         
@@ -124,8 +110,6 @@ class LocalMapCenter:
 
         lookahead = min(lookahead, self.local_map.s_track[-1]) 
         lookahead_point = interp_2d_points(lookahead, self.local_map.s_track, self.local_map.track[:, 0:2])
-        # if VERBOSE:
-        #     print(f"Lookahead: {lookahead:.2f}, Lookahead point: ({lookahead_point[0]:.2f}, {lookahead_point[1]:.2f}): Current progress: {current_progress:.2f}")
 
         steering_angle = get_local_steering_actuation(lookahead_point, LOOKAHEAD_DISTANCE, WHEELBASE)
         steering_angle = np.clip(steering_angle, -MAX_STEER, MAX_STEER)
@@ -142,45 +126,6 @@ class LocalMapCenter:
         print(f"Lap complete ({self.track_line.map_name.upper()}) --> Time: {final_obs['lap_times'][0]:.2f}, Progress: {progress:.1f}%")
         
      
-    
-@njit(cache=True)
-def calculate_offset_coords(pts, position, heading):
-    rotation = np.array([[np.cos(heading), -np.sin(heading)],
-                        [np.sin(heading), np.cos(heading)]])
-        
-    new_pts = (rotation @ pts.T).T + position
-    # new_pts = np.matmul(rotation, pts.T).T + position
-
-    return new_pts
-
-@njit(cache=True)
-def calculate_speed(delta, f_s=0.8, max_v=7):
-    b = 0.523
-    g = 9.81
-    l_d = 0.329
-
-    if abs(delta) < 0.03:
-        return max_v
-    if abs(delta) > 0.4:
-        return 3
-
-    V = f_s * np.sqrt(b*g*l_d/np.tan(abs(delta)))
-
-    V = min(V, max_v)
-
-    return V
-    
-
-     
-# @njit(cache=True)
-# def calculate_speed_limit(delta, friction_limit=1.2):
-#     if abs(delta) < 0.03:
-#         return MAX_SPEED
-
-#     V = np.sqrt(friction_limit*GRAVITY*WHEELBASE/np.tan(abs(delta)))
-#     V = min(V, MAX_SPEED)
-
-#     return V
 
 # @njit(fastmath=False, cache=True)
 def get_steering_actuation(pose_theta, lookahead_point, position, lookahead_distance, wheelbase):
